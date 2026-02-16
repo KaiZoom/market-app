@@ -3,7 +3,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MarketSelectionScreen } from '../screens/customer/MarketSelectionScreen';
 import { ProductsScreen } from '../screens/customer/ProductsScreen';
 import { CategoryProductsScreen } from '../screens/customer/CategoryProductsScreen';
-import { ProductDetailScreen } from '../screens/customer/ProductDetailScreen';
 import { CartScreen } from '../screens/customer/CartScreen';
 import { TouchableOpacity, Text } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,11 +35,6 @@ export const CustomerNavigator: React.FC = () => {
         name="CategoryProducts"
         component={CategoryProductsScreen}
         options={{ title: 'Categoria' }}
-      />
-      <Stack.Screen
-        name="ProductDetail"
-        component={ProductDetailScreen}
-        options={{ title: 'Detalhes do Produto' }}
       />
       <Stack.Screen
         name="Cart"

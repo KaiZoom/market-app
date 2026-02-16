@@ -66,6 +66,7 @@ export const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         discount: discountValue,
         category,
         imageUrl: 'https://via.placeholder.com/150',
+        images: [require('../../../assets/agua-sanitaria.png')],
       });
 
       Alert.alert('Sucesso', 'Produto cadastrado com sucesso!', [

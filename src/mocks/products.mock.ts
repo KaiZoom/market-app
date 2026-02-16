@@ -1,5 +1,8 @@
 import { Product } from '../models';
 
+/** Sentinel: use nos componentes para resolver com require() local (evita problema de bundle). */
+export const PRODUCT_IMAGE_DEFAULT = 'default' as const;
+
 /** Mapeamento: nome base do produto -> { category, subcategory } */
 const PRODUCT_CATEGORIES: Record<string, { category: string; subcategory: string }> = {
   // Alimentos
@@ -117,6 +120,7 @@ function generateProducts(marketId: string, count: number): Product[] {
       stock: generateRandomStock(),
       discount: generateRandomDiscount(),
       imageUrl: `https://via.placeholder.com/150?text=Produto+${i + 1}`,
+      images: [PRODUCT_IMAGE_DEFAULT],
       category,
       subcategory,
       createdAt: new Date('2024-01-01'),

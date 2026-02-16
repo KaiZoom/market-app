@@ -17,6 +17,10 @@ import {
 import { ProductWithFinalPrice } from '../../models';
 import { productService } from '../../services';
 import { useCart } from '../../contexts/CartContext';
+import { ProductDetailModal } from '../../components/ProductDetailModal';
+import { getProductImageSource } from '../../utils/productImage';
+
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 const MOBILE_BREAKPOINT = 768;
 const ITEMS_PER_VIEW_MOBILE = 2;
@@ -46,6 +50,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const isMobile = width < MOBILE_BREAKPOINT;
   const [categoryPage, setCategoryPage] = useState<Record<string, number>>({});
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
   const categoryScrollRefs = useRef<Record<string, ScrollView | null>>({});
 
   const itemsPerView = isMobile ? ITEMS_PER_VIEW_MOBILE : ITEMS_PER_VIEW_WEB;
@@ -142,7 +147,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       Alert.alert('Estoque Esgotado', 'Este produto não está disponível no momento.');
       return;
     }
-    navigation.navigate('ProductDetail', { product });
+    setSelectedProduct(product);
   };
 
   const handleQuickAdd = (product: ProductWithFinalPrice) => {
@@ -216,7 +221,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       >
         <View style={[styles.imageWrapper, { width: imageSize, height: imageSize }]}>
           <Image
-            source={require('../../../assets/agua-sanitaria.png')}
+            source={getProductImageSource(product.images?.[0], DEFAULT_PRODUCT_IMAGE)}
             style={[styles.productImage, { width: imageSize, height: imageSize }]}
             resizeMode="cover"
           />
@@ -364,6 +369,14 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
           <View style={styles.mainContent}>{mainContent}</View>
         </View>
       )}
+      <ProductDetailModal
+        visible={!!selectedProduct}
+        product={selectedProduct}
+        marketProducts={products}
+        onClose={() => setSelectedProduct(null)}
+        onGoToCart={() => navigation.navigate('Cart')}
+        onSelectProduct={setSelectedProduct}
+      />
     </SafeAreaView>
   );
 };
