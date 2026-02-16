@@ -1,30 +1,79 @@
 import { Product } from '../models';
 
-const categories = [
-  'Alimentos',
-  'Bebidas',
-  'Limpeza',
-  'Higiene',
-  'Padaria',
-  'Açougue',
-  'Hortifruti',
-  'Frios',
-  'Laticínios',
-  'Mercearia',
-];
+/** Mapeamento: nome base do produto -> { category, subcategory } */
+const PRODUCT_CATEGORIES: Record<string, { category: string; subcategory: string }> = {
+  // Alimentos
+  'Arroz': { category: 'Alimentos', subcategory: 'Grãos' },
+  'Feijão': { category: 'Alimentos', subcategory: 'Grãos' },
+  'Macarrão': { category: 'Alimentos', subcategory: 'Grãos' },
+  'Óleo': { category: 'Alimentos', subcategory: 'Temperos' },
+  'Açúcar': { category: 'Alimentos', subcategory: 'Temperos' },
+  'Sal': { category: 'Alimentos', subcategory: 'Temperos' },
+  'Vinagre': { category: 'Alimentos', subcategory: 'Temperos' },
+  'Café': { category: 'Alimentos', subcategory: 'Cafés' },
+  // Bebidas
+  'Leite': { category: 'Laticínios', subcategory: 'Leites' },
+  'Refrigerante': { category: 'Bebidas', subcategory: 'Refrigerados' },
+  'Suco': { category: 'Bebidas', subcategory: 'Refrigerados' },
+  'Água': { category: 'Bebidas', subcategory: 'Refrigerados' },
+  'Cerveja': { category: 'Bebidas', subcategory: 'Alcoólicas' },
+  'Vinho': { category: 'Bebidas', subcategory: 'Alcoólicas' },
+  'Energético': { category: 'Bebidas', subcategory: 'Energéticos' },
+  // Limpeza
+  'Detergente': { category: 'Limpeza', subcategory: 'Louça' },
+  'Sabão em Pó': { category: 'Limpeza', subcategory: 'Roupa' },
+  'Amaciante': { category: 'Limpeza', subcategory: 'Roupa' },
+  'Desinfetante': { category: 'Limpeza', subcategory: 'Sujeira pesada' },
+  'Água Sanitária': { category: 'Limpeza', subcategory: 'Sujeira pesada' },
+  // Higiene
+  'Shampoo': { category: 'Higiene', subcategory: 'Cabelo' },
+  'Condicionador': { category: 'Higiene', subcategory: 'Cabelo' },
+  'Sabonete': { category: 'Higiene', subcategory: 'Corpo' },
+  'Pasta de Dente': { category: 'Higiene', subcategory: 'Bucal' },
+  'Papel Higiênico': { category: 'Higiene', subcategory: 'Papel' },
+  // Padaria
+  'Pão': { category: 'Padaria', subcategory: 'Pães' },
+  'Manteiga': { category: 'Padaria', subcategory: 'Manteiga' },
+  // Açougue
+  'Carne Bovina': { category: 'Açougue', subcategory: 'Bovino' },
+  'Frango': { category: 'Açougue', subcategory: 'Aves' },
+  'Peixe': { category: 'Açougue', subcategory: 'Peixes' },
+  'Linguiça': { category: 'Açougue', subcategory: 'Embutidos' },
+  'Bacon': { category: 'Açougue', subcategory: 'Embutidos' },
+  // Hortifruti
+  'Tomate': { category: 'Hortifruti', subcategory: 'Legumes' },
+  'Alface': { category: 'Hortifruti', subcategory: 'Verduras' },
+  'Cebola': { category: 'Hortifruti', subcategory: 'Legumes' },
+  'Batata': { category: 'Hortifruti', subcategory: 'Legumes' },
+  'Cenoura': { category: 'Hortifruti', subcategory: 'Legumes' },
+  'Banana': { category: 'Hortifruti', subcategory: 'Frutas' },
+  'Maçã': { category: 'Hortifruti', subcategory: 'Frutas' },
+  'Laranja': { category: 'Hortifruti', subcategory: 'Frutas' },
+  // Frios
+  'Queijo': { category: 'Frios', subcategory: 'Queijos' },
+  'Presunto': { category: 'Frios', subcategory: 'Frios' },
+  'Mortadela': { category: 'Frios', subcategory: 'Frios' },
+  // Laticínios
+  'Iogurte': { category: 'Laticínios', subcategory: 'Fermentados' },
+  'Requeijão': { category: 'Laticínios', subcategory: 'Cremes' },
+  // Mercearia
+  'Biscoito': { category: 'Mercearia', subcategory: 'Snacks' },
+  'Chocolate': { category: 'Mercearia', subcategory: 'Snacks' },
+  'Bala': { category: 'Mercearia', subcategory: 'Snacks' },
+  'Salgadinho': { category: 'Mercearia', subcategory: 'Snacks' },
+  'Sorvete': { category: 'Mercearia', subcategory: 'Snacks' },
+  'Farinha': { category: 'Mercearia', subcategory: 'Farináceos' },
+  'Fermento': { category: 'Mercearia', subcategory: 'Farináceos' },
+  'Molho de Tomate': { category: 'Mercearia', subcategory: 'Molhos' },
+  'Maionese': { category: 'Mercearia', subcategory: 'Molhos' },
+  'Mostarda': { category: 'Mercearia', subcategory: 'Molhos' },
+  'Ovo': { category: 'Mercearia', subcategory: 'Básicos' },
+  'Margarina': { category: 'Mercearia', subcategory: 'Básicos' },
+  'Creme de Leite': { category: 'Mercearia', subcategory: 'Básicos' },
+  'Leite Condensado': { category: 'Mercearia', subcategory: 'Básicos' },
+};
 
-const productNames = [
-  'Arroz', 'Feijão', 'Macarrão', 'Óleo', 'Açúcar', 'Sal', 'Café', 'Leite',
-  'Pão', 'Manteiga', 'Queijo', 'Presunto', 'Mortadela', 'Iogurte', 'Requeijão',
-  'Refrigerante', 'Suco', 'Água', 'Cerveja', 'Vinho', 'Energético',
-  'Detergente', 'Sabão em Pó', 'Amaciante', 'Desinfetante', 'Água Sanitária',
-  'Shampoo', 'Condicionador', 'Sabonete', 'Pasta de Dente', 'Papel Higiênico',
-  'Carne Bovina', 'Frango', 'Peixe', 'Linguiça', 'Bacon',
-  'Tomate', 'Alface', 'Cebola', 'Batata', 'Cenoura', 'Banana', 'Maçã', 'Laranja',
-  'Biscoito', 'Chocolate', 'Bala', 'Salgadinho', 'Sorvete',
-  'Farinha', 'Fermento', 'Vinagre', 'Molho de Tomate', 'Maionese', 'Mostarda',
-  'Ovo', 'Margarina', 'Creme de Leite', 'Leite Condensado',
-];
+const productNames = Object.keys(PRODUCT_CATEGORIES);
 
 const prefixes = ['Premium', 'Super', 'Extra', 'Mega', 'Top', 'Master', 'Plus', 'Gold'];
 const suffixes = ['Especial', 'Tradicional', 'Gourmet', 'Light', 'Diet', 'Integral', 'Natural'];
@@ -49,10 +98,16 @@ function generateProductName(index: number): string {
   return `${prefix}${baseName}${suffix}`;
 }
 
+function getCategoryAndSubcategory(index: number): { category: string; subcategory: string } {
+  const baseName = productNames[index % productNames.length];
+  return PRODUCT_CATEGORIES[baseName];
+}
+
 function generateProducts(marketId: string, count: number): Product[] {
   const products: Product[] = [];
 
   for (let i = 0; i < count; i++) {
+    const { category, subcategory } = getCategoryAndSubcategory(i);
     products.push({
       id: `${marketId}-product-${i + 1}`,
       marketId,
@@ -62,7 +117,8 @@ function generateProducts(marketId: string, count: number): Product[] {
       stock: generateRandomStock(),
       discount: generateRandomDiscount(),
       imageUrl: `https://via.placeholder.com/150?text=Produto+${i + 1}`,
-      category: categories[Math.floor(Math.random() * categories.length)],
+      category,
+      subcategory,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
     });

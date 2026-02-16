@@ -8,6 +8,7 @@ export interface Product {
   discount: number; // Percentual (0-100)
   imageUrl: string;
   category: string;
+  subcategory?: string; // ex: Limpeza > Sujeira pesada (Água Sanitária)
   createdAt: Date;
   updatedAt: Date;
 }

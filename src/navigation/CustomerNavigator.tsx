@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MarketSelectionScreen } from '../screens/customer/MarketSelectionScreen';
 import { ProductsScreen } from '../screens/customer/ProductsScreen';
+import { CategoryProductsScreen } from '../screens/customer/CategoryProductsScreen';
 import { ProductDetailScreen } from '../screens/customer/ProductDetailScreen';
 import { CartScreen } from '../screens/customer/CartScreen';
 import { TouchableOpacity, Text } from 'react-native';
@@ -30,6 +31,11 @@ export const CustomerNavigator: React.FC = () => {
         name="Products"
         component={ProductsScreen}
         options={{ title: 'Produtos' }}
+      />
+      <Stack.Screen
+        name="CategoryProducts"
+        component={CategoryProductsScreen}
+        options={{ title: 'Categoria' }}
       />
       <Stack.Screen
         name="ProductDetail"
