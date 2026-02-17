@@ -1,9 +1,18 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useRef, ReactNode } from 'react';
 import { ProductWithFinalPrice } from '../models';
+import { CartModal } from '../components/CartModal';
+import { AddToCartToast } from '../components/AddToCartToast';
 
 export interface CartItem {
   product: ProductWithFinalPrice;
   quantity: number;
+}
+
+export type CartModalNavigation = { navigate: (screen: string) => void } | null;
+
+export interface AddToCartToastItem {
+  product: ProductWithFinalPrice;
+  quantityAdded: number;
 }
 
 interface CartContextData {
@@ -16,6 +25,13 @@ interface CartContextData {
   setMarket: (marketId: string) => void;
   getTotalAmount: () => number;
   getTotalItems: () => number;
+  cartModalVisible: boolean;
+  openCartModal: (navigation?: CartModalNavigation) => void;
+  closeCartModal: () => void;
+  closeCartModalAndGoToMarkets: () => void;
+  /** Toast "item adicionado": definido ao adicionar ao carrinho, limpar após exibir. */
+  lastAddedToast: AddToCartToastItem | null;
+  clearAddToCartToast: () => void;
 }
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
@@ -27,6 +43,26 @@ interface CartProviderProps {
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [cartModalVisible, setCartModalVisible] = useState(false);
+  const [lastAddedToast, setLastAddedToast] = useState<AddToCartToastItem | null>(null);
+  const cartModalNavigationRef = useRef<CartModalNavigation>(null);
+
+  const clearAddToCartToast = () => setLastAddedToast(null);
+
+  const openCartModal = (navigation?: CartModalNavigation) => {
+    cartModalNavigationRef.current = navigation ?? null;
+    setCartModalVisible(true);
+  };
+
+  const closeCartModal = () => {
+    setCartModalVisible(false);
+    cartModalNavigationRef.current = null;
+  };
+
+  const closeCartModalAndGoToMarkets = () => {
+    cartModalNavigationRef.current?.navigate('Markets');
+    closeCartModal();
+  };
 
   const addToCart = (product: ProductWithFinalPrice, quantity: number) => {
     // Validar estoque
@@ -45,6 +81,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     } else {
       setItems([...items, { product, quantity }]);
     }
+    setLastAddedToast({ product, quantityAdded: quantity });
   };
 
   const removeFromCart = (productId: string) => {
@@ -102,9 +139,17 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         setMarket,
         getTotalAmount,
         getTotalItems,
+        cartModalVisible,
+        openCartModal,
+        closeCartModal,
+        closeCartModalAndGoToMarkets,
+        lastAddedToast,
+        clearAddToCartToast,
       }}
     >
       {children}
+      <CartModal />
+      <AddToCartToast />
     </CartContext.Provider>
   );
 };

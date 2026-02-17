@@ -19,7 +19,7 @@ interface Props {
 export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { product } = route.params as { product: ProductWithFinalPrice };
   const [quantity, setQuantity] = useState('1');
-  const { addToCart } = useCart();
+  const { addToCart, openCartModal } = useCart();
 
   const handleAddToCart = () => {
     const qty = parseInt(quantity);
@@ -38,7 +38,7 @@ export const ProductDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       addToCart(product, qty);
       Alert.alert('Sucesso', 'Produto adicionado ao carrinho!', [
         { text: 'Continuar comprando', onPress: () => navigation.goBack() },
-        { text: 'Ir para o carrinho', onPress: () => navigation.navigate('Cart') },
+        { text: 'Ir para o carrinho', onPress: () => openCartModal(navigation) },
       ]);
     } catch (error: any) {
       Alert.alert('Erro', error.message);

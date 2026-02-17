@@ -23,8 +23,8 @@ import { getProductImageSource } from '../../utils/productImage';
 const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 const MOBILE_BREAKPOINT = 768;
-const ITEMS_PER_VIEW_MOBILE = 2;
-const ITEMS_PER_VIEW_WEB = 5;
+const ITEMS_PER_VIEW_MOBILE = 3;
+const ITEMS_PER_VIEW_WEB = 8;
 const PADDING_HORIZONTAL = 16;
 const GAP = 8;
 const WEB_LAYOUT_BUFFER = 48;
@@ -40,11 +40,65 @@ interface Section {
   items: ProductWithFinalPrice[];
 }
 
+interface CartButtonsOverlayProps {
+  product: ProductWithFinalPrice;
+  cartQty: number;
+  onQuickAdd: () => void;
+  onQuantityChange: (newQty: number, e?: any) => void;
+}
+
+const CartButtonsOverlay: React.FC<CartButtonsOverlayProps> = ({
+  product,
+  cartQty,
+  onQuickAdd,
+  onQuantityChange,
+}) => {
+  const inCart = cartQty > 0;
+
+  if (!inCart) {
+    return (
+      <Pressable
+        style={(state: { pressed: boolean; hovered?: boolean }) => [
+          styles.quickAddButtonOverlay,
+          state.hovered && styles.quickAddButtonOverlayHover,
+        ]}
+        onPress={(e) => {
+          e?.stopPropagation?.();
+          onQuickAdd();
+        }}
+      >
+        <Text style={styles.quickAddButtonText}>+</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.quantityControlOverlay}>
+      <View style={styles.quantityControlWrap}>
+        <TouchableOpacity
+          style={styles.quantityControlButton}
+          onPress={(e) => onQuantityChange(cartQty - 1, e)}
+        >
+          <Text style={styles.quantityControlSymbol}>−</Text>
+        </TouchableOpacity>
+        <Text style={styles.quantityControlValue}>{cartQty}</Text>
+        <TouchableOpacity
+          style={styles.quantityControlButton}
+          onPress={(e) => onQuantityChange(cartQty + 1, e)}
+          disabled={cartQty >= product.stock}
+        >
+          <Text style={[styles.quantityControlSymbol, cartQty >= product.stock && styles.quantityControlSymbolDisabled]}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { marketId, marketName } = route.params;
   const [products, setProducts] = useState<ProductWithFinalPrice[]>([]);
   const [searchText, setSearchText] = useState('');
-  const { getTotalItems, addToCart } = useCart();
+  const { getTotalItems, addToCart, openCartModal, items, updateQuantity } = useCart();
   const { width } = useWindowDimensions();
 
   const isMobile = width < MOBILE_BREAKPOINT;
@@ -103,7 +157,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       headerRight: () => (
         <TouchableOpacity
           style={styles.headerCartButton}
-          onPress={() => navigation.navigate('Cart')}
+          onPress={() => openCartModal(navigation)}
         >
           <Text style={styles.cartButtonText}>Carrinho ({getTotalItems()})</Text>
         </TouchableOpacity>
@@ -157,7 +211,15 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     }
     try {
       addToCart(product, 1);
-      Alert.alert('Adicionado', '1 unidade adicionada ao carrinho.');
+    } catch (error: any) {
+      Alert.alert('Erro', error.message);
+    }
+  };
+
+  const handleQuantityChange = (product: ProductWithFinalPrice, newQty: number, e?: any) => {
+    e?.stopPropagation?.();
+    try {
+      updateQuantity(product.id, newQty);
     } catch (error: any) {
       Alert.alert('Erro', error.message);
     }
@@ -193,67 +255,73 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     });
   };
 
-  const imageSize = itemSize - 32;
-  const cardMinHeight = imageSize + 72;
+  const imageSize = itemSize - 24;
+  const cardMinHeight = imageSize + 64;
 
-  const renderProductCard = (product: ProductWithFinalPrice) => (
-    <View
-      key={product.id}
-      style={[
-        styles.productCard,
-        { width: itemSize, minHeight: cardMinHeight },
-        hoveredCardId === product.id && styles.productCardHover,
-      ]}
-      {...({
-        onMouseEnter: () => setHoveredCardId(product.id),
-        onMouseLeave: (e: any) => {
-          const related = e?.nativeEvent?.relatedTarget;
-          const current = e?.currentTarget;
-          if (current && related && current.contains(related)) return;
-          setHoveredCardId(null);
-        },
-      } as any)}
-    >
-      <TouchableOpacity
-        style={styles.productCardTouchable}
-        onPress={() => handlePressCard(product)}
-        activeOpacity={0.8}
+  const renderProductCard = (product: ProductWithFinalPrice) => {
+    const cartQty = items.find((i) => i.product.id === product.id)?.quantity ?? 0;
+    const inCart = cartQty > 0;
+
+    return (
+      <View
+        key={product.id}
+        style={[
+          styles.productCard,
+          { width: itemSize, minHeight: cardMinHeight },
+          hoveredCardId === product.id && styles.productCardHover,
+        ]}
+        {...({
+          onMouseEnter: () => setHoveredCardId(product.id),
+          onMouseLeave: (e: any) => {
+            const related = e?.nativeEvent?.relatedTarget;
+            const current = e?.currentTarget;
+            if (current && related && current.contains(related)) return;
+            setHoveredCardId(null);
+          },
+        } as any)}
       >
-        <View style={[styles.imageWrapper, { width: imageSize, height: imageSize }]}>
-          <Image
-            source={getProductImageSource(product.images?.[0], DEFAULT_PRODUCT_IMAGE)}
-            style={[styles.productImage, { width: imageSize, height: imageSize }]}
-            resizeMode="cover"
-          />
-          <Pressable
-            style={(state: { pressed: boolean; hovered?: boolean }) => [
-              styles.quickAddButtonOverlay,
-              state.hovered && styles.quickAddButtonOverlayHover,
-            ]}
-            onPress={() => handleQuickAdd(product)}
-          >
-            <Text style={styles.quickAddButtonText}>+</Text>
-          </Pressable>
-        </View>
-        <View style={styles.originalPriceRow}>
-          {product.discount > 0 && (
-            <>
-              <Text style={styles.originalPrice}>R$ {product.price.toFixed(2)} un</Text>
-              <Text style={styles.discountPercent}> -{product.discount}%</Text>
-            </>
-          )}
-        </View>
-        <Text style={isMobile ? styles.productPriceMobile : styles.productPrice}>
-          R$ {product.finalPrice.toFixed(2)} un
-        </Text>
-        <View style={styles.productNameSlot}>
-          <Text style={isMobile ? styles.productNameMobile : styles.productName} numberOfLines={3}>
-            {product.name}
+        <TouchableOpacity
+          style={styles.productCardTouchable}
+          onPress={() => handlePressCard(product)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.imageWrapper, { width: imageSize, height: imageSize }]}>
+            <Image
+              source={getProductImageSource(product.images?.[0], DEFAULT_PRODUCT_IMAGE)}
+              style={[styles.productImage, { width: imageSize, height: imageSize }]}
+              resizeMode="cover"
+            />
+            <CartButtonsOverlay
+              product={product}
+              cartQty={cartQty}
+              onQuickAdd={() => handleQuickAdd(product)}
+              onQuantityChange={(newQty, e) => handleQuantityChange(product, newQty, e)}
+            />
+          </View>
+          <View style={styles.originalPriceRow}>
+            {product.discount > 0 && (
+              <>
+                <Text style={styles.originalPrice}>R$ {product.price.toFixed(2)} un</Text>
+                <Text style={styles.discountPercent}> -{product.discount}%</Text>
+              </>
+            )}
+          </View>
+          <Text style={isMobile ? styles.productPriceMobile : styles.productPrice}>
+            R$ {product.finalPrice.toFixed(2)} un
           </Text>
-        </View>
-      </TouchableOpacity>
-    </View>
-  );
+          <View style={styles.productNameSlot}>
+            <Text
+              style={isMobile ? styles.productNameMobile : styles.productName}
+              numberOfLines={3}
+              ellipsizeMode="tail"
+            >
+              {product.name}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderCategoryBlock = (section: Section) => {
     const page = categoryPage[section.title] ?? 0;
@@ -374,7 +442,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
         product={selectedProduct}
         marketProducts={products}
         onClose={() => setSelectedProduct(null)}
-        onGoToCart={() => navigation.navigate('Cart')}
+        onGoToCart={() => openCartModal(navigation)}
         onSelectProduct={setSelectedProduct}
       />
     </SafeAreaView>
@@ -572,7 +640,7 @@ const styles = StyleSheet.create({
   },
   productCard: {
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -581,12 +649,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+    overflow: 'hidden',
   },
   productCardHover: {
     borderColor: '#555',
   },
   productCardTouchable: {
     flex: 1,
+    minWidth: 0,
   },
   imageWrapper: {
     position: 'relative',
@@ -595,22 +665,55 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 6,
   },
+  quantityControlOverlay: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+  },
+  quantityControlWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#364661',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  quantityControlButton: {
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityControlSymbol: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    color: '#fff',
+    fontSize: 16,
+  },
+  quantityControlSymbolDisabled: {
+    opacity: 0.4,
+  },
+  quantityControlValue: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    color: '#fff',
+    fontSize: 13,
+    minWidth: 24,
+    textAlign: 'center',
+  },
   originalPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    minHeight: 22,
+    minHeight: 18,
     marginBottom: 2,
   },
   originalPrice: {
     fontFamily: 'BricolageGrotesque_400Regular',
-    fontSize: 14,
+    fontSize: 11,
     color: '#888',
     textDecorationLine: 'line-through',
   },
   discountPercent: {
     fontFamily: 'BricolageGrotesque_700Bold',
-    fontSize: 14,
+    fontSize: 11,
     color: '#000',
     backgroundColor: '#d9e7f2',
     paddingHorizontal: 4,
@@ -622,34 +725,36 @@ const styles = StyleSheet.create({
   },
   productPrice: {
     fontFamily: 'BricolageGrotesque_700Bold',
-    fontSize: 17,
+    fontSize: 14,
     color: '#000',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productPriceMobile: {
     fontFamily: 'BricolageGrotesque_700Bold',
-    fontSize: 19,
+    fontSize: 15,
     color: '#000',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productNameSlot: {
-    minHeight: 40,
+    minHeight: 36,
     justifyContent: 'center',
+    overflow: 'hidden',
+    minWidth: 0,
   },
   productName: {
     fontFamily: 'BricolageGrotesque_400Regular',
-    fontSize: 14,
+    fontSize: 12,
     color: '#333',
   },
   productNameMobile: {
     fontFamily: 'BricolageGrotesque_400Regular',
-    fontSize: 16,
+    fontSize: 13,
     color: '#333',
   },
   quickAddButtonOverlay: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
+    bottom: 6,
+    right: 6,
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -671,8 +776,8 @@ const styles = StyleSheet.create({
   quickAddButtonText: {
     fontFamily: 'BricolageGrotesque_700Bold',
     color: '#fff',
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: 18,
+    lineHeight: 20,
   },
   emptyCard: {
     backgroundColor: 'transparent',

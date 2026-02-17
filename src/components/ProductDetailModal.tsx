@@ -11,6 +11,7 @@ import {
   Image,
   useWindowDimensions,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { ProductWithFinalPrice, ProductImageSource } from '../models';
 import { useCart } from '../contexts/CartContext';
@@ -18,6 +19,7 @@ import { getProductImageSource, DEFAULT_IMAGE_KEY } from '../utils/productImage'
 
 const RECOMMENDED_LIMIT = 6;
 const DEFAULT_IMAGE = require('../../assets/agua-sanitaria.png');
+const MOBILE_BREAKPOINT = 768;
 
 function toImageSource(src: ProductImageSource | undefined): { uri: string } | number {
   return getProductImageSource(src, DEFAULT_IMAGE);
@@ -49,7 +51,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const tx2 = useRef(new Animated.Value(0)).current;
   const ty2 = useRef(new Animated.Value(0)).current;
   const galleryRef = useRef<View>(null);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth < MOBILE_BREAKPOINT;
+  const windowDimensions = isMobile
+    ? { width: Dimensions.get('window').width, height: Dimensions.get('screen').height }
+    : null;
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
 
   const galleryWidth = Math.min(560, windowWidth - 48);
@@ -165,11 +171,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
-  const handleCartZero = () => {
-    if (!product || cartQuantity <= 0) return;
-    removeFromCart(product.id);
-  };
-
   if (!product) return null;
 
   return (
@@ -179,14 +180,37 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       animationType="fade"
       onRequestClose={resetAndClose}
     >
-      <Pressable style={styles.overlay} onPress={resetAndClose}>
-        <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+      <Pressable
+        style={[
+          styles.overlay,
+          isMobile && windowDimensions && [
+            styles.overlayFullScreen,
+            { width: windowDimensions.width, height: windowDimensions.height, minHeight: windowDimensions.height },
+          ],
+        ]}
+        onPress={resetAndClose}
+      >
+        <Pressable
+          style={[
+            styles.modalBox,
+            isMobile &&
+              windowDimensions && [
+                styles.modalBoxFullScreen,
+                {
+                  width: windowDimensions.width,
+                  height: windowDimensions.height,
+                  minHeight: windowDimensions.height,
+                },
+              ],
+          ]}
+          onPress={(e) => e.stopPropagation()}
+        >
           <TouchableOpacity style={styles.closeButton} onPress={resetAndClose} hitSlop={12}>
             <Text style={styles.closeButtonText}>×</Text>
           </TouchableOpacity>
 
           <ScrollView
-            style={styles.scrollView}
+            style={[styles.scrollView, isMobile && styles.scrollViewFullScreen]}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
           >
@@ -260,41 +284,39 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               <View style={styles.priceContainer}>
                 {product.discount > 0 && (
-                  <>
-                    <Text style={styles.originalPrice}>R$ {product.price.toFixed(2)}</Text>
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountText}>{product.discount}% OFF</Text>
-                    </View>
-                  </>
+                  <View style={styles.originalPriceRow}>
+                    <Text style={styles.originalPrice}>R$ {product.price.toFixed(2)} un</Text>
+                    <Text style={styles.discountPercent}> -{product.discount}%</Text>
+                  </View>
                 )}
-                <Text style={styles.price}>R$ {product.finalPrice.toFixed(2)}</Text>
-              </View>
-
-              <View style={styles.cartQuantityRow}>
-                <Text style={styles.cartQuantityLabel}>No carrinho:</Text>
-                <View style={styles.cartQuantityControl}>
-                  <TouchableOpacity
-                    style={[styles.cartQuantityBtn, styles.cartQuantityBtnZero]}
-                    onPress={handleCartZero}
-                    disabled={cartQuantity === 0}
-                  >
-                    <Text style={styles.cartQuantityBtnText}>🗑</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cartQuantityBtn}
-                    onPress={handleCartMinus}
-                    disabled={cartQuantity === 0}
-                  >
-                    <Text style={styles.cartQuantityBtnText}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.cartQuantityValue}>{cartQuantity}</Text>
-                  <TouchableOpacity
-                    style={styles.cartQuantityBtn}
-                    onPress={handleCartPlus}
-                    disabled={cartQuantity >= product.stock}
-                  >
-                    <Text style={styles.cartQuantityBtnText}>+</Text>
-                  </TouchableOpacity>
+                <View style={styles.priceAndCartRow}>
+                  <Text style={styles.price}>R$ {product.finalPrice.toFixed(2)} un</Text>
+                  {cartQuantity === 0 ? (
+                    <TouchableOpacity
+                      style={[styles.modalAddToCartButton, product.stock === 0 && styles.modalAddToCartButtonDisabled]}
+                      onPress={handleCartPlus}
+                      disabled={product.stock === 0}
+                    >
+                      <Text style={styles.modalAddToCartButtonText}>Adicionar ao carrinho</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.modalQuantityBar}>
+                      <TouchableOpacity
+                        style={styles.modalQuantityBtn}
+                        onPress={handleCartMinus}
+                      >
+                        <Text style={styles.modalQuantityBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.modalQuantityValue}>{cartQuantity}</Text>
+                      <TouchableOpacity
+                        style={styles.modalQuantityBtn}
+                        onPress={handleCartPlus}
+                        disabled={cartQuantity >= product.stock}
+                      >
+                        <Text style={[styles.modalQuantityBtnText, cartQuantity >= product.stock && styles.modalQuantityBtnTextDisabled]}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -347,6 +369,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  overlayFullScreen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 0,
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+  },
   modalBox: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -354,8 +386,14 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '90%',
   },
+  modalBoxFullScreen: {
+    borderRadius: 0,
+  },
   scrollView: {
     maxHeight: '100%',
+  },
+  scrollViewFullScreen: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 24,
@@ -478,73 +516,89 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   priceContainer: {
+    marginBottom: 16,
+  },
+  priceAndCartRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  originalPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
+    minHeight: 22,
+    marginBottom: 2,
   },
   originalPrice: {
     fontSize: 16,
-    color: '#999',
+    color: '#888',
     textDecorationLine: 'line-through',
-    marginRight: 8,
+  },
+  discountPercent: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+    backgroundColor: '#d9e7f2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#b8d4e8',
+    marginLeft: 8,
   },
   price: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#000',
     marginRight: 12,
   },
-  discountBadge: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  discountText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  cartQuantityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-  },
-  cartQuantityLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  cartQuantityControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cartQuantityBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2196F3',
+  modalAddToCartButton: {
+    backgroundColor: '#364661',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    flexShrink: 0,
   },
-  cartQuantityBtnZero: {
-    backgroundColor: '#757575',
-    marginLeft: 0,
+  modalAddToCartButtonDisabled: {
+    opacity: 0.5,
   },
-  cartQuantityBtnText: {
+  modalAddToCartButtonText: {
+    fontFamily: 'BricolageGrotesque_700Bold',
     color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 14,
   },
-  cartQuantityValue: {
-    minWidth: 44,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
+  modalQuantityBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#364661',
+    borderRadius: 20,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  modalQuantityBtn: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalQuantityBtnText: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    color: '#fff',
+    fontSize: 20,
+  },
+  modalQuantityBtnTextDisabled: {
+    opacity: 0.4,
+  },
+  modalQuantityValue: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    color: '#fff',
+    fontSize: 16,
+    minWidth: 28,
     textAlign: 'center',
-    marginLeft: 8,
   },
   recommendedSection: {
     paddingHorizontal: 28,
