@@ -318,7 +318,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                   </View>
                   <TouchableOpacity
                     style={styles.mobileLojaSelector}
-                    onPress={() => navigation.goBack()}
+                    onPress={() => navigation.navigate('Markets')}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.mobileLojaLabel}>Loja de</Text>
@@ -669,7 +669,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                 styles.sidebarBackButton,
                 hoveredCategory === '__voltar__' && styles.sidebarButtonHovered,
               ]}
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('Markets')}
               {...({
                 onMouseEnter: () => setHoveredCategory('__voltar__'),
                 onMouseLeave: () => setHoveredCategory(null),
