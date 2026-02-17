@@ -29,6 +29,7 @@ interface CartContextData {
   openCartModal: (navigation?: CartModalNavigation) => void;
   closeCartModal: () => void;
   closeCartModalAndGoToMarkets: () => void;
+  closeCartModalAndGoToCheckout: () => void;
   /** Toast "item adicionado": definido ao adicionar ao carrinho, limpar após exibir. */
   lastAddedToast: AddToCartToastItem | null;
   clearAddToCartToast: () => void;
@@ -61,6 +62,11 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
 
   const closeCartModalAndGoToMarkets = () => {
     cartModalNavigationRef.current?.navigate('Markets');
+    closeCartModal();
+  };
+
+  const closeCartModalAndGoToCheckout = () => {
+    cartModalNavigationRef.current?.navigate('InformarEmail');
     closeCartModal();
   };
 
@@ -143,6 +149,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         openCartModal,
         closeCartModal,
         closeCartModalAndGoToMarkets,
+        closeCartModalAndGoToCheckout,
         lastAddedToast,
         clearAddToCartToast,
       }}

@@ -3,6 +3,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MarketSelectionScreen } from '../screens/customer/MarketSelectionScreen';
 import { ProductsScreen } from '../screens/customer/ProductsScreen';
 import { CategoryProductsScreen } from '../screens/customer/CategoryProductsScreen';
+import { InformarEmailScreen } from '../screens/customer/InformarEmailScreen';
+import { CheckoutDataScreen } from '../screens/customer/CheckoutDataScreen';
+import { OrderStatusScreen } from '../screens/customer/OrderStatusScreen';
 import { TouchableOpacity, Text } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -34,6 +37,21 @@ export const CustomerNavigator: React.FC = () => {
         name="CategoryProducts"
         component={CategoryProductsScreen}
         options={{ title: 'Categoria' }}
+      />
+      <Stack.Screen
+        name="InformarEmail"
+        component={InformarEmailScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CheckoutData"
+        component={CheckoutDataScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OrderStatus"
+        component={OrderStatusScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

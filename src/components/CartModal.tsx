@@ -15,8 +15,6 @@ import {
 } from 'react-native';
 import { Trash, ShoppingCart, X, MoreVertical, Plus, Minus } from 'lucide-react-native';
 import { useCart } from '../contexts/CartContext';
-import { useAuth } from '../contexts/AuthContext';
-import { orderService } from '../services';
 import { getProductImageSource } from '../utils/productImage';
 import type { CartItem } from '../contexts/CartContext';
 
@@ -48,8 +46,8 @@ export const CartModal: React.FC = () => {
     cartModalVisible,
     closeCartModal,
     closeCartModalAndGoToMarkets,
+    closeCartModalAndGoToCheckout,
   } = useCart();
-  const { user } = useAuth();
 
   useEffect(() => {
     const w = isMobile ? width : Math.min(PANEL_WIDTH_MAX, width * PANEL_WIDTH_PERCENT);
@@ -84,37 +82,18 @@ export const CartModal: React.FC = () => {
     }
   }, [cartModalVisible, width, isMobile]);
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (items.length === 0) {
       Alert.alert('Carrinho vazio', 'Adicione produtos ao carrinho antes de finalizar.');
       return;
     }
 
-    if (!selectedMarketId || !user) {
-      Alert.alert('Erro', 'Erro ao processar pedido.');
+    if (!selectedMarketId) {
+      Alert.alert('Erro', 'Selecione um mercado antes de finalizar.');
       return;
     }
 
-    try {
-      const order = await orderService.createOrder({
-        customerId: user.id,
-        marketId: selectedMarketId,
-        items: items.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-        })),
-      });
-
-      clearCart();
-
-      Alert.alert(
-        'Pedido Enviado!',
-        `Pedido #${order.id} enviado com sucesso!\nTotal: R$ ${order.totalAmount.toFixed(2)}\n\nAguardando confirmação do administrador.`,
-        [{ text: 'OK', onPress: closeCartModalAndGoToMarkets }]
-      );
-    } catch (error: unknown) {
-      Alert.alert('Erro', error instanceof Error ? error.message : 'Erro ao enviar pedido.');
-    }
+    closeCartModalAndGoToCheckout();
   };
 
   const handleUpdateQuantity = (productId: string, newQuantity: number) => {
