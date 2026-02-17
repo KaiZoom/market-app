@@ -18,6 +18,7 @@ import {
   ArrowLeft, 
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Plus, 
   Minus, 
   ShoppingCart, 
@@ -33,6 +34,7 @@ import {
   Milk,
   ShoppingBag,
   Package,
+  User,
 } from 'lucide-react-native';
 import { ProductWithFinalPrice } from '../../models';
 import { productService } from '../../services';
@@ -73,9 +75,9 @@ const SearchBar: React.FC<{ searchText: string; onChangeText: (text: string) => 
   return (
     <View style={styles.headerSearchWrapper}>
       <View style={[styles.headerSearchContainer, isFocused && styles.headerSearchContainerFocused]}>
-        <Search size={18} color={isFocused ? "#2196F3" : "#888"} style={styles.searchIcon} />
+        <Search size={18} color={isFocused ? "#2196F3" : "#888"} style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
         <TextInput
-          style={styles.headerSearchInput}
+          style={[styles.headerSearchInput, { outlineStyle: 'none', outlineWidth: 0, outlineColor: 'transparent' } as any]}
           placeholder="Buscar produtos..."
           value={searchText}
           onChangeText={onChangeText}
@@ -85,6 +87,7 @@ const SearchBar: React.FC<{ searchText: string; onChangeText: (text: string) => 
           autoCorrect={false}
           autoCapitalize="none"
           selectionColor="#2196F3"
+          editable={true}
         />
       </View>
     </View>
@@ -168,7 +171,16 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [bannerIndex, setBannerIndex] = useState(0);
   const categoryScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const bannerScrollRef = useRef<ScrollView | null>(null);
+
+  const banners = [
+    { id: 1, color: '#2196F3' }, // Azul
+    { id: 2, color: '#F44336' }, // Vermelho
+    { id: 3, color: '#4CAF50' }, // Verde
+    { id: 4, color: '#FF9800' }, // Laranja
+  ];
 
   const itemsPerView = isMobile ? ITEMS_PER_VIEW_MOBILE : ITEMS_PER_VIEW_WEB;
 
@@ -194,33 +206,39 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     setProducts(data);
   }, [marketId]);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerStyle: {
-        height: 90,
-      },
-      headerLeft: () => (
-        <View style={styles.headerLeftContainer}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <ArrowLeft size={20} color="#2196F3" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitleText} numberOfLines={1}>{marketName}</Text>
-        </View>
-      ),
-      headerTitleAlign: 'center',
-      headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'stretch' },
-      headerTitle: () => <SearchBar searchText={searchText} onChangeText={setSearchText} />,
-      headerRight: () => (
-        <TouchableOpacity
-          style={styles.headerCartButton}
-          onPress={() => openCartModal(navigation)}
-        >
-          <ShoppingCart size={20} color="#fff" />
-          <Text style={styles.cartButtonText}>({getTotalItems()})</Text>
-        </TouchableOpacity>
-      ),
+  const bannerWidth = useMemo(() => {
+    return isMobile ? width : width - 280; // Subtrai a largura da sidebar no desktop
+  }, [width, isMobile]);
+
+  const handleBannerScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(offsetX / bannerWidth);
+    setBannerIndex(newIndex);
+  };
+
+  const goToBanner = (index: number) => {
+    setBannerIndex(index);
+    bannerScrollRef.current?.scrollTo({
+      x: index * bannerWidth,
+      animated: true,
     });
-  }, [navigation, marketName, searchText, getTotalItems]);
+  };
+
+  // Auto-play do banner a cada 10 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBannerIndex((prev) => {
+        const next = (prev + 1) % banners.length;
+        bannerScrollRef.current?.scrollTo({
+          x: next * bannerWidth,
+          animated: true,
+        });
+        return next;
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [bannerWidth, banners.length]);
 
   const categories = useMemo(
     () => [...new Set(products.map((p) => p.category))].sort(),
@@ -285,6 +303,120 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const goToCategory = (category: string) => {
     navigation.navigate('CategoryProducts', { marketId, marketName, category });
   };
+
+  useEffect(() => {
+    navigation.setOptions(
+      isMobile
+        ? {
+            headerStyle: { minHeight: 200 },
+            header: () => (
+              <View style={styles.mobileHeaderRoot}>
+                <View style={styles.mobileHeaderRow1}>
+                  <View style={styles.mobileLogoSmall}>
+                    <ShoppingBag size={22} color="#2196F3" strokeWidth={2.5} />
+                    <Text style={styles.mobileLogoText}>MARKET</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.mobileLojaSelector}
+                    onPress={() => navigation.goBack()}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.mobileLojaLabel}>Loja de</Text>
+                    <View style={styles.mobileLojaRow}>
+                      <Text style={styles.mobileLojaName} numberOfLines={1}>{marketName}</Text>
+                      <ChevronDown size={16} color="#333" />
+                    </View>
+                  </TouchableOpacity>
+                  <View style={styles.mobileHeaderIcons}>
+                    <Pressable
+                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
+                      onPress={() => {}}
+                    >
+                      <User size={22} color="#2196F3" />
+                    </Pressable>
+                    <Pressable
+                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
+                      onPress={() => openCartModal(navigation)}
+                    >
+                      <ShoppingCart size={22} color="#333" />
+                      <Text style={styles.mobileCartCount}>({getTotalItems()})</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={styles.mobileSearchRow}>
+                  <View style={styles.mobileSearchContainer}>
+                    <Search size={18} color="#888" style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
+                    <TextInput
+                      style={[styles.headerSearchInput, styles.mobileSearchInput, { outlineStyle: 'none', outlineWidth: 0, outlineColor: 'transparent' } as any]}
+                      placeholder="Leite, arroz, pão, vinho, frutas..."
+                      value={searchText}
+                      onChangeText={setSearchText}
+                      placeholderTextColor="#999"
+                      selectionColor="#2196F3"
+                      editable={true}
+                    />
+                  </View>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.mobileCategoryRow}
+                >
+                  {categories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={styles.mobileCategoryChip}
+                      onPress={() => goToCategory(cat)}
+                    >
+                      <Text style={styles.mobileCategoryChipText} numberOfLines={1}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ),
+          }
+        : {
+            headerStyle: { height: 90 },
+            headerLeft: () => (
+              <View style={styles.headerLeftContainer}>
+                <View style={styles.marketLogoPlaceholder}>
+                  <View style={styles.logoIconContainer}>
+                    <ShoppingBag size={32} color="#2196F3" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.logoText}>MARKET</Text>
+                </View>
+              </View>
+            ),
+            headerTitleAlign: 'center',
+            headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'stretch' },
+            headerTitle: () => <SearchBar searchText={searchText} onChangeText={setSearchText} />,
+            headerRight: () => (
+              <View style={styles.headerRightContainer}>
+                <Pressable
+                  style={(state: { pressed: boolean; hovered?: boolean }) => [
+                    styles.headerUserButton,
+                    (state.hovered || state.pressed) && styles.headerUserButtonHover,
+                  ]}
+                  onPress={() => {}}
+                >
+                  <User size={20} color="#2196F3" />
+                  <Text style={styles.headerUserText}>Entrar</Text>
+                </Pressable>
+                <Pressable
+                  style={(state: { pressed: boolean; hovered?: boolean }) => [
+                    styles.headerCartButton,
+                    (state.hovered || state.pressed) && styles.headerCartButtonHover,
+                  ]}
+                  onPress={() => openCartModal(navigation)}
+                >
+                  <ShoppingCart size={20} color="#fff" />
+                  <Text style={styles.cartButtonText}>({getTotalItems()})</Text>
+                </Pressable>
+              </View>
+            ),
+          }
+    );
+  }, [navigation, marketName, searchText, getTotalItems, isMobile, categories, openCartModal]);
 
   const goToPrevPage = (categoryTitle: string) => {
     const currentPage = categoryPage[categoryTitle] ?? 0;
@@ -440,42 +572,64 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     );
   };
 
-  const mainContent = (
-    <>
+  const renderBanner = () => (
+    <View style={styles.bannerContainer}>
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={true}
+        ref={(el) => {
+          bannerScrollRef.current = el;
+        }}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleBannerScroll}
+        scrollEventThrottle={16}
       >
-        {sections.map(renderCategoryBlock)}
+        {banners.map((banner) => (
+          <View key={banner.id} style={[styles.bannerSlide, { width: bannerWidth, backgroundColor: banner.color }]} />
+        ))}
       </ScrollView>
-    </>
+      <View style={styles.bannerControls}>
+        <TouchableOpacity
+          style={[styles.bannerArrow, bannerIndex === 0 && styles.bannerArrowDisabled]}
+          onPress={() => goToBanner(Math.max(0, bannerIndex - 1))}
+          disabled={bannerIndex === 0}
+        >
+          <ChevronLeft size={20} color={bannerIndex === 0 ? "#ccc" : "#fff"} />
+        </TouchableOpacity>
+        <View style={styles.bannerDots}>
+          {banners.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.bannerDot,
+                bannerIndex === index && styles.bannerDotActive,
+              ]}
+            />
+          ))}
+        </View>
+        <TouchableOpacity
+          style={[styles.bannerArrow, bannerIndex === banners.length - 1 && styles.bannerArrowDisabled]}
+          onPress={() => goToBanner(Math.min(banners.length - 1, bannerIndex + 1))}
+          disabled={bannerIndex === banners.length - 1}
+        >
+          <ChevronRight size={20} color={bannerIndex === banners.length - 1 ? "#ccc" : "#fff"} />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
       {isMobile ? (
         <View style={styles.mobileWrapper}>
-          <View style={styles.categoryStrip}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryStripContent}
-            >
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={styles.categoryCircle}
-                  onPress={() => goToCategory(cat)}
-                >
-                  <Text style={styles.categoryCircleText} numberOfLines={1}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-          <View style={styles.mobileContent}>{mainContent}</View>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={true}
+          >
+            {renderBanner()}
+            {sections.map(renderCategoryBlock)}
+          </ScrollView>
         </View>
       ) : (
         <View style={styles.webRow}>
@@ -509,8 +663,40 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                 </Pressable>
               );
             })}
+            <Pressable
+              style={[
+                styles.sidebarButton,
+                styles.sidebarBackButton,
+                hoveredCategory === '__voltar__' && styles.sidebarButtonHovered,
+              ]}
+              onPress={() => navigation.goBack()}
+              {...({
+                onMouseEnter: () => setHoveredCategory('__voltar__'),
+                onMouseLeave: () => setHoveredCategory(null),
+              } as any)}
+            >
+              <View style={styles.sidebarButtonContent}>
+                <View style={[styles.categoryIconContainer, { backgroundColor: '#2196F320' }]}>
+                  <ArrowLeft size={20} color="#2196F3" />
+                </View>
+                <Text style={[
+                  styles.sidebarButtonText,
+                  hoveredCategory === '__voltar__' && styles.sidebarButtonTextHovered,
+                ]}>Voltar do mercado</Text>
+              </View>
+              <View style={[styles.categoryAccent, { backgroundColor: '#2196F3' }]} />
+            </Pressable>
           </View>
-          <View style={styles.mainContent}>{mainContent}</View>
+          <View style={styles.mainContent}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={true}
+            >
+              {renderBanner()}
+              {sections.map(renderCategoryBlock)}
+            </ScrollView>
+          </View>
         </View>
       )}
       <ProductDetailModal
@@ -530,10 +716,84 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  bannerContainer: {
+    height: 240,
+    position: 'relative',
+    width: '100%',
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  bannerSlide: {
+    height: 240,
+    borderRadius: 12,
+  },
+  bannerControls: {
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  bannerArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerArrowDisabled: {
+    opacity: 0.3,
+  },
+  bannerDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bannerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  bannerDotActive: {
+    backgroundColor: '#fff',
+    width: 24,
+  },
   headerLeftContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  marketLogoPlaceholder: {
+    width: 185,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    marginLeft: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  logoIconContainer: {
+    marginRight: 8,
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2196F3',
+    letterSpacing: 1,
   },
   headerBackText: {
     fontSize: 24,
@@ -555,7 +815,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 8,
     paddingHorizontal: 12,
-    height: 50,
+    height: 60,
     width: '100%',
     borderWidth: 2,
     borderColor: 'transparent',
@@ -576,15 +836,129 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: 'transparent',
   },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginRight: 16,
+  },
+  headerUserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  headerUserButtonHover: {
+    backgroundColor: '#e3f2fd',
+  },
+  headerUserText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2196F3',
+  },
   headerCartButton: {
     backgroundColor: '#4CAF50',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  headerCartButtonHover: {
+    backgroundColor: '#388E3C',
+  },
+  mobileHeaderRoot: {
+    backgroundColor: '#fff',
+    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  mobileHeaderRow1: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mobileLogoSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginRight: 12,
+  },
+  mobileLogoText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2196F3',
+  },
+  mobileLojaSelector: {
+    flex: 1,
+  },
+  mobileLojaLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  mobileLojaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mobileLojaName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  mobileHeaderIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mobileIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
+  },
+  mobileIconBtnPressed: {
+    opacity: 0.7,
+  },
+  mobileCartCount: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  mobileSearchRow: {
+    marginBottom: 12,
+    alignSelf: 'stretch',
+  },
+  mobileSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8e8e8',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 45,
+    minHeight: 45,
+  },
+  mobileSearchInput: {
+    minHeight: 45,
+  },
+  mobileCategoryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  mobileCategoryChip: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  mobileCategoryChipText: {
+    fontSize: 13,
+    color: '#1976d2',
+    fontWeight: '500',
   },
   cartButton: {
     backgroundColor: '#4CAF50',
@@ -672,6 +1046,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     transform: [{ translateX: 4 }],
   },
+  sidebarBackButton: {
+    marginTop: 32,
+  },
   sidebarButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,11 +1080,9 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    flexDirection: 'column',
   },
   mobileWrapper: {
-    flex: 1,
-  },
-  mobileContent: {
     flex: 1,
   },
   searchInput: {
@@ -720,7 +1095,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    paddingTop: 32,
+    paddingTop: 16,
     paddingBottom: 32,
   },
   scrollView: {
