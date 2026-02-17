@@ -52,6 +52,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const tx2 = useRef(new Animated.Value(0)).current;
   const ty2 = useRef(new Animated.Value(0)).current;
   const galleryRef = useRef<View>(null);
+  const recommendedScrollRef = useRef<ScrollView>(null);
+  const [recommendedPage, setRecommendedPage] = useState(0);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isMobile = windowWidth < MOBILE_BREAKPOINT;
   const windowDimensions = isMobile
@@ -149,6 +151,34 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const hasMultipleImages = productImages.length > 1;
   const canGoPrev = hasMultipleImages && imageIndex > 0;
   const canGoNext = hasMultipleImages && imageIndex < productImages.length - 1;
+
+  // Navegação de recomendados
+  const ITEMS_PER_PAGE = 3;
+  const totalRecommendedPages = Math.ceil(recommended.length / ITEMS_PER_PAGE);
+  const canGoPrevRecommended = recommendedPage > 0;
+  const canGoNextRecommended = recommendedPage < totalRecommendedPages - 1;
+
+  const goToPrevRecommended = () => {
+    if (!canGoPrevRecommended) return;
+    const newPage = recommendedPage - 1;
+    setRecommendedPage(newPage);
+    const itemWidth = 132; // 120 width + 12 marginRight
+    recommendedScrollRef.current?.scrollTo({
+      x: newPage * itemWidth * ITEMS_PER_PAGE,
+      animated: true,
+    });
+  };
+
+  const goToNextRecommended = () => {
+    if (!canGoNextRecommended) return;
+    const newPage = recommendedPage + 1;
+    setRecommendedPage(newPage);
+    const itemWidth = 132; // 120 width + 12 marginRight
+    recommendedScrollRef.current?.scrollTo({
+      x: newPage * itemWidth * ITEMS_PER_PAGE,
+      animated: true,
+    });
+  };
 
   const resetAndClose = () => {
     onClose();
@@ -325,11 +355,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {recommended.length > 0 && (
               <View style={styles.recommendedSection}>
-                <Text style={styles.recommendedTitle}>Recomendados</Text>
+                <View style={styles.recommendedHeader}>
+                  <Text style={styles.recommendedTitle}>Recomendados</Text>
+                  {!isMobile && recommended.length > ITEMS_PER_PAGE && (
+                    <View style={styles.recommendedNav}>
+                      <TouchableOpacity
+                        style={[styles.navArrowButton, !canGoPrevRecommended && styles.navArrowButtonDisabled]}
+                        onPress={goToPrevRecommended}
+                        disabled={!canGoPrevRecommended}
+                      >
+                        <ChevronLeft size={18} color={canGoPrevRecommended ? "#333" : "#ccc"} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.navArrowButton, !canGoNextRecommended && styles.navArrowButtonDisabled]}
+                        onPress={goToNextRecommended}
+                        disabled={!canGoNextRecommended}
+                      >
+                        <ChevronRight size={18} color={canGoNextRecommended ? "#333" : "#ccc"} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
                 <ScrollView
+                  ref={recommendedScrollRef}
                   horizontal
-                  showsHorizontalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={isMobile}
                   contentContainerStyle={styles.recommendedList}
+                  scrollEnabled={isMobile}
                 >
                   {recommended.map((rec) => (
                     <TouchableOpacity
@@ -611,11 +663,33 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
+  recommendedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   recommendedTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#333',
-    marginBottom: 14,
+  },
+  recommendedNav: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  navArrowButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  navArrowButtonDisabled: {
+    opacity: 0.4,
   },
   recommendedList: {
     paddingRight: 28,

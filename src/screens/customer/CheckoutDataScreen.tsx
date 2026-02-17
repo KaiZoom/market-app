@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 import { ArrowLeft, Check, Pencil, Calendar, Lock } from 'lucide-react-native';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { orderService } from '../../services';
+import { orderService, db } from '../../services';
 import { getProductImageSource } from '../../utils/productImage';
 
 const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
@@ -78,7 +78,13 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   const [lastName, setLastName] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
-  const [touched, setTouched] = useState({ firstName: false, lastName: false });
+  const [touched, setTouched] = useState({ 
+    firstName: false, 
+    lastName: false, 
+    email: false, 
+    cpf: false, 
+    phone: false 
+  });
   const [step1Complete, setStep1Complete] = useState(false);
 
   const [cep, setCep] = useState('');
@@ -86,7 +92,11 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   const [numero, setNumero] = useState('');
   const [complemento, setComplemento] = useState('');
   const [destinatario, setDestinatario] = useState('');
-  const [touchedEntrega, setTouchedEntrega] = useState({ numero: false, destinatario: false });
+  const [touchedEntrega, setTouchedEntrega] = useState({ 
+    cep: false,
+    numero: false, 
+    destinatario: false 
+  });
   const [deliveryType, setDeliveryType] = useState<'retirada' | 'entrega'>('entrega');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
@@ -99,6 +109,14 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   const [cardExpYear, setCardExpYear] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [cardCpf, setCardCpf] = useState('');
+  const [touchedPayment, setTouchedPayment] = useState({
+    cardNumber: false,
+    cardName: false,
+    cardExpMonth: false,
+    cardExpYear: false,
+    cardCvv: false,
+    cardCpf: false,
+  });
   const [billingAddressSame, setBillingAddressSame] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
 
@@ -108,17 +126,148 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   const deliveryFee = deliveryType === 'entrega' && step1Complete ? DELIVERY_FEE : 0;
   const total = cartTotal + deliveryFee;
 
+  // Preencher automaticamente os dados do usuário logado
+  useEffect(() => {
+    if (user) {
+      // Dados pessoais
+      const nameParts = user.name.split(' ');
+      setFirstName(nameParts[0] || '');
+      setLastName(nameParts.slice(1).join(' ') || '');
+      setEmail(user.email);
+      if (user.cpf) setCpf(user.cpf);
+      if (user.phone) setPhone(user.phone);
+
+      // Endereço
+      if (user.address) {
+        setCep(user.address.cep);
+        setAddress({
+          street: user.address.street,
+          neighborhood: user.address.neighborhood,
+          city: user.address.city,
+          state: user.address.state,
+        });
+        setNumero(user.address.number);
+        if (user.address.complement) setComplemento(user.address.complement);
+        setDestinatario(user.name);
+
+        // Auto-preencher data de entrega
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+        setScheduleDate(d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+        setScheduleTime('15:00-18:00');
+      }
+
+      // Cartão de pagamento
+      if (user.paymentCard) {
+        setPaymentMethod('credito');
+        setCardNumber(user.paymentCard.number);
+        setCardName(user.paymentCard.name);
+        setCardExpMonth(user.paymentCard.expMonth);
+        setCardExpYear(user.paymentCard.expYear);
+        setCardCpf(user.paymentCard.cpf);
+      }
+    }
+  }, [user]);
+
+  // Auto-avançar etapa 1 se dados pessoais estiverem preenchidos
+  useEffect(() => {
+    if (firstName.trim() && lastName.trim() && isValidEmail(email) && !step1Complete) {
+      setStep1Complete(true);
+    }
+  }, [firstName, lastName, email, step1Complete]);
+
+  // Auto-avançar etapa 2 se dados de entrega estiverem preenchidos
+  useEffect(() => {
+    if (step1Complete && isValidCEP(cep) && numero.trim() && destinatario.trim() && address.street && !step2Complete) {
+      setStep2Complete(true);
+    }
+  }, [step1Complete, cep, numero, destinatario, address.street, step2Complete]);
+
   const handleCpfChange = (text: string) => setCpf(maskCPF(text));
   const handlePhoneChange = (text: string) => setPhone(maskPhone(text));
 
-  const nameError = touched.firstName && !firstName.trim() ? 'Campo obrigatório.' : null;
-  const lastNameError = touched.lastName && !lastName.trim() ? 'Campo obrigatório.' : null;
-  const numeroError = touchedEntrega.numero && !numero.trim() ? 'Campo obrigatório.' : null;
-  const destinatarioError = touchedEntrega.destinatario && !destinatario.trim() ? 'Campo obrigatório.' : null;
+  // Funções de validação
+  const isValidCPF = (cpfValue: string): boolean => {
+    const digits = cpfValue.replace(/\D/g, '');
+    return digits.length === 11;
+  };
+
+  const isValidPhone = (phoneValue: string): boolean => {
+    const digits = phoneValue.replace(/\D/g, '');
+    return digits.length === 10 || digits.length === 11;
+  };
+
+  const isValidCardNumber = (cardNumberValue: string): boolean => {
+    const digits = cardNumberValue.replace(/\D/g, '');
+    return digits.length >= 13 && digits.length <= 16;
+  };
+
+  const isValidExpiry = (month: string, year: string): boolean => {
+    if (!month || !year) return false;
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+    if (monthNum < 1 || monthNum > 12) return false;
+    
+    const now = new Date();
+    const currentYear = now.getFullYear() % 100;
+    const currentMonth = now.getMonth() + 1;
+    
+    if (yearNum < currentYear) return false;
+    if (yearNum === currentYear && monthNum < currentMonth) return false;
+    return true;
+  };
+
+  const isValidCVV = (cvvValue: string): boolean => {
+    const digits = cvvValue.replace(/\D/g, '');
+    return digits.length === 3 || digits.length === 4;
+  };
+
+  // Validações de erro para exibir
+  const nameError = touched.firstName && !firstName.trim() ? 'Campo obrigatório' : null;
+  const lastNameError = touched.lastName && !lastName.trim() ? 'Campo obrigatório' : null;
+  const emailError = touched.email && !isValidEmail(email) ? 'E-mail inválido' : null;
+  const cpfError = touched.cpf && cpf && !isValidCPF(cpf) ? 'CPF inválido' : null;
+  const phoneError = touched.phone && phone && !isValidPhone(phone) ? 'Telefone inválido' : null;
+
+  const cepError = touchedEntrega.cep && !isValidCEP(cep) ? 'CEP inválido' : null;
+  const numeroError = touchedEntrega.numero && !numero.trim() ? 'Campo obrigatório' : null;
+  const destinatarioError = touchedEntrega.destinatario && !destinatario.trim() ? 'Campo obrigatório' : null;
+
+  const needsCardValidation = paymentMethod === 'credito' || paymentMethod === 'crediffato' || paymentMethod === 'convenio';
+  const cardNumberError = needsCardValidation && touchedPayment.cardNumber && !isValidCardNumber(cardNumber) 
+    ? 'Número de cartão inválido' : null;
+  const cardNameError = needsCardValidation && touchedPayment.cardName && !cardName.trim() 
+    ? 'Nome do titular obrigatório' : null;
+  const cardExpiryError = needsCardValidation && (touchedPayment.cardExpMonth || touchedPayment.cardExpYear) 
+    && !isValidExpiry(cardExpMonth, cardExpYear) 
+    ? 'Data de validade inválida' : null;
+  const cardCvvError = needsCardValidation && touchedPayment.cardCvv && !isValidCVV(cardCvv) 
+    ? 'CVV inválido' : null;
+  const cardCpfError = needsCardValidation && touchedPayment.cardCpf && !isValidCPF(cardCpf) 
+    ? 'CPF inválido' : null;
 
   const handleIrParaEntrega = () => {
-    setTouched({ firstName: true, lastName: true });
-    if (!firstName.trim() || !lastName.trim()) return;
+    setTouched({ 
+      firstName: true, 
+      lastName: true, 
+      email: true, 
+      cpf: false, 
+      phone: false 
+    });
+    
+    if (!firstName.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o primeiro nome');
+      return;
+    }
+    if (!lastName.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o último nome');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      Alert.alert('Erro', 'Por favor, insira um e-mail válido');
+      return;
+    }
+    
     setDestinatario((prev) => prev || `${firstName.trim()} ${lastName.trim()}`.trim());
     setStep1Complete(true);
   };
@@ -137,8 +286,25 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleIrParaPagamento = () => {
-    setTouchedEntrega({ numero: true, destinatario: true });
-    if (!numero.trim() || !destinatario.trim()) return;
+    setTouchedEntrega({ cep: true, numero: true, destinatario: true });
+    
+    if (!isValidCEP(cep)) {
+      Alert.alert('Erro', 'Por favor, insira um CEP válido');
+      return;
+    }
+    if (!numero.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o número do endereço');
+      return;
+    }
+    if (!destinatario.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o nome do destinatário');
+      return;
+    }
+    if (!address.street) {
+      Alert.alert('Erro', 'Por favor, aguarde o carregamento do endereço');
+      return;
+    }
+    
     setStep2Complete(true);
   };
 
@@ -148,18 +314,47 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
   const handleCardCpfChange = (text: string) => setCardCpf(maskCPF(text));
 
   const handleFinalizarCompra = async () => {
+    // Validar campos de pagamento se necessário
     if (paymentMethod === 'credito' || paymentMethod === 'crediffato' || paymentMethod === 'convenio') {
-      if (!cardNumber.trim() || !cardName.trim() || !cardCvv.trim() || !cardCpf.replace(/\D/g, '').match(/^\d{11}$/)) return;
+      setTouchedPayment({
+        cardNumber: true,
+        cardName: true,
+        cardExpMonth: true,
+        cardExpYear: true,
+        cardCvv: true,
+        cardCpf: true,
+      });
+
+      if (!isValidCardNumber(cardNumber)) {
+        Alert.alert('Erro', 'Por favor, insira um número de cartão válido');
+        return;
+      }
+      if (!cardName.trim()) {
+        Alert.alert('Erro', 'Por favor, preencha o nome do titular do cartão');
+        return;
+      }
+      if (!isValidExpiry(cardExpMonth, cardExpYear)) {
+        Alert.alert('Erro', 'Por favor, insira uma data de validade válida');
+        return;
+      }
+      if (!isValidCVV(cardCvv)) {
+        Alert.alert('Erro', 'Por favor, insira um CVV válido (3 ou 4 dígitos)');
+        return;
+      }
+      if (!isValidCPF(cardCpf)) {
+        Alert.alert('Erro', 'Por favor, insira um CPF válido');
+        return;
+      }
     }
+    
     if (!selectedMarketId || items.length === 0) {
       Alert.alert('Erro', 'Carrinho vazio ou mercado não selecionado.');
       return;
     }
-    const customerId = user?.id ?? 'guest';
-    if (customerId === 'guest') {
-      Alert.alert('Erro', 'Faça login para finalizar a compra.');
-      return;
-    }
+    
+    // Permite compra como guest ou usuário logado
+    const customerId = user?.id ?? `guest_${email.replace('@', '_').replace('.', '_')}`;
+    
     setFinalizing(true);
     try {
       const order = await orderService.createOrder({
@@ -169,10 +364,20 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
       });
       clearCart();
       const estimatedTime = deliveryType === 'entrega' && scheduleTime ? scheduleTime : '20:00-22:00';
+      
+      // Buscar informações do mercado para redirecionar para a página inicial correta
+      const market = selectedMarketId ? db.getMarketById(selectedMarketId) : db.getMarkets()[0];
+      
       navigation.reset({
         index: 1,
         routes: [
-          { name: 'Markets' },
+          { 
+            name: 'Products',
+            params: { 
+              marketId: market?.id || selectedMarketId, 
+              marketName: market?.name || 'Mercado' 
+            }
+          },
           {
             name: 'OrderStatus',
             params: {
@@ -286,27 +491,29 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
 
       <View style={styles.fieldRow}>
         <View style={styles.fieldWrap}>
-          <Text style={styles.fieldLabel}>E-mail</Text>
+          <Text style={styles.fieldLabel}>E-mail *</Text>
           <View style={styles.emailInputRow}>
             <TextInput
-              style={[styles.input, styles.emailInput]}
+              style={[styles.input, styles.emailInput, emailError && styles.inputError]}
               value={email}
               onChangeText={setEmail}
               placeholder="seu@email.com"
               placeholderTextColor="#999"
               keyboardType="email-address"
               autoCapitalize="none"
+              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
             />
             {isValidEmail(email) && (
               <Check size={20} color="#2E7D32" style={styles.checkIcon} />
             )}
           </View>
+          {emailError && <Text style={styles.errorText}>{emailError}</Text>}
         </View>
       </View>
 
       <View style={styles.fieldRow}>
         <View style={[styles.fieldWrap, styles.fieldHalf]}>
-          <Text style={styles.fieldLabel}>Primeiro nome</Text>
+          <Text style={styles.fieldLabel}>Primeiro nome *</Text>
           <TextInput
             style={[styles.input, nameError && styles.inputError]}
             value={firstName}
@@ -317,7 +524,7 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
           />
         </View>
         <View style={[styles.fieldWrap, styles.fieldHalf]}>
-          <Text style={styles.fieldLabel}>Último nome</Text>
+          <Text style={styles.fieldLabel}>Último nome *</Text>
           <TextInput
             style={[styles.input, lastNameError && styles.inputError]}
             value={lastName}
@@ -336,26 +543,30 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
         <View style={[styles.fieldWrap, styles.fieldHalf]}>
           <Text style={styles.fieldLabel}>CPF</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, cpfError && styles.inputError]}
             value={cpf}
             onChangeText={handleCpfChange}
             placeholder="999.999.999-99"
             placeholderTextColor="#999"
             keyboardType="numeric"
             maxLength={14}
+            onBlur={() => setTouched((t) => ({ ...t, cpf: true }))}
           />
+          {cpfError && <Text style={styles.errorText}>{cpfError}</Text>}
         </View>
         <View style={[styles.fieldWrap, styles.fieldHalf]}>
           <Text style={styles.fieldLabel}>Telefone</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, phoneError && styles.inputError]}
             value={phone}
             onChangeText={handlePhoneChange}
             placeholder="11 99999-9999"
             placeholderTextColor="#999"
             keyboardType="phone-pad"
             maxLength={14}
+            onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
           />
+          {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
         </View>
       </View>
 
@@ -384,18 +595,20 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
               <View style={styles.cepRow}>
                 <View style={[styles.emailInputRow, styles.cepInputWrap]}>
                   <TextInput
-                    style={[styles.input, styles.emailInput]}
+                    style={[styles.input, styles.emailInput, cepError && styles.inputError]}
                     value={cep}
                     onChangeText={handleCepChange}
                     placeholder="00000-000"
                     placeholderTextColor="#999"
                     keyboardType="numeric"
                     maxLength={9}
+                    onBlur={() => setTouchedEntrega((t) => ({ ...t, cep: true }))}
                   />
                   {isValidCEP(cep) && <Check size={20} color="#2E7D32" style={styles.checkIcon} />}
                 </View>
                 <TouchableOpacity><Text style={styles.linkText}>Não sei meu CEP</Text></TouchableOpacity>
               </View>
+              {cepError && <Text style={styles.errorText}>{cepError}</Text>}
             </View>
           </View>
           {address.street && (
@@ -431,9 +644,6 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
           <View style={styles.fieldRow}>
             <View style={styles.fieldWrap}>
-              {destinatarioError && (
-                <Text style={[styles.errorText, { marginBottom: 4 }]}>{destinatarioError}</Text>
-              )}
               <Text style={styles.fieldLabel}>Destinatário *</Text>
               <View style={styles.emailInputRow}>
                 <TextInput
@@ -446,6 +656,7 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
                 />
                 {destinatario.trim() && <Check size={20} color="#2E7D32" style={styles.checkIcon} />}
               </View>
+              {destinatarioError && <Text style={styles.errorText}>{destinatarioError}</Text>}
             </View>
           </View>
           <Text style={styles.radioGroupLabel}>Escolha o tipo de entrega</Text>
@@ -559,22 +770,24 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
                 </View>
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldWrap, styles.fieldFull]}>
-                    <Text style={styles.fieldLabel}>Número do cartão</Text>
+                    <Text style={styles.fieldLabel}>Número do cartão *</Text>
                     <View style={styles.cardNumberRow}>
                       <TextInput
-                        style={[styles.input, styles.cardNumberInput]}
+                        style={[styles.input, styles.cardNumberInput, cardNumberError && styles.inputError]}
                         value={cardNumber}
                         onChangeText={handleCardNumberChange}
                         placeholder="0000 0000 0000 0000"
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                         maxLength={19}
+                        onBlur={() => setTouchedPayment((t) => ({ ...t, cardNumber: true }))}
                       />
                       <View style={styles.ambienteSeguro}>
                         <Lock size={14} color="#666" />
                         <Text style={styles.ambienteSeguroText}>Ambiente Seguro</Text>
                       </View>
                     </View>
+                    {cardNumberError && <Text style={styles.errorText}>{cardNumberError}</Text>}
                   </View>
                 </View>
                 <View style={styles.cardLogosRow}>
@@ -594,46 +807,51 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
                 </View>
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldWrap, styles.fieldFull]}>
-                    <Text style={styles.fieldLabel}>Nome impresso no cartão</Text>
+                    <Text style={styles.fieldLabel}>Nome impresso no cartão *</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, cardNameError && styles.inputError]}
                       value={cardName}
                       onChangeText={setCardName}
                       placeholder="Nome como está no cartão"
                       placeholderTextColor="#999"
                       autoCapitalize="words"
+                      onBlur={() => setTouchedPayment((t) => ({ ...t, cardName: true }))}
                     />
+                    {cardNameError && <Text style={styles.errorText}>{cardNameError}</Text>}
                   </View>
                 </View>
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldWrap, styles.fieldHalf]}>
-                    <Text style={styles.fieldLabel}>Validade</Text>
+                    <Text style={styles.fieldLabel}>Validade *</Text>
                     <View style={styles.expiryRow}>
                       <TextInput
-                        style={[styles.input, styles.expiryInput]}
+                        style={[styles.input, styles.expiryInput, cardExpiryError && styles.inputError]}
                         value={cardExpMonth}
                         onChangeText={(t) => setCardExpMonth(t.replace(/\D/g, '').slice(0, 2))}
                         placeholder="Mês"
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                         maxLength={2}
+                        onBlur={() => setTouchedPayment((t) => ({ ...t, cardExpMonth: true }))}
                       />
                       <Text style={styles.expirySeparator}>/</Text>
                       <TextInput
-                        style={[styles.input, styles.expiryInput]}
+                        style={[styles.input, styles.expiryInput, cardExpiryError && styles.inputError]}
                         value={cardExpYear}
                         onChangeText={(t) => setCardExpYear(t.replace(/\D/g, '').slice(0, 2))}
                         placeholder="Ano"
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                         maxLength={2}
+                        onBlur={() => setTouchedPayment((t) => ({ ...t, cardExpYear: true }))}
                       />
                     </View>
+                    {cardExpiryError && <Text style={styles.errorText}>{cardExpiryError}</Text>}
                   </View>
                   <View style={[styles.fieldWrap, styles.fieldHalf]}>
-                    <Text style={styles.fieldLabel}>Código de segurança</Text>
+                    <Text style={styles.fieldLabel}>Código de segurança *</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, cardCvvError && styles.inputError]}
                       value={cardCvv}
                       onChangeText={(t) => setCardCvv(t.replace(/\D/g, '').slice(0, 4))}
                       placeholder="CVV"
@@ -641,21 +859,25 @@ export const CheckoutDataScreen: React.FC<Props> = ({ route, navigation }) => {
                       keyboardType="numeric"
                       maxLength={4}
                       secureTextEntry
+                      onBlur={() => setTouchedPayment((t) => ({ ...t, cardCvv: true }))}
                     />
+                    {cardCvvError && <Text style={styles.errorText}>{cardCvvError}</Text>}
                   </View>
                 </View>
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldWrap, styles.fieldFull]}>
-                    <Text style={styles.fieldLabel}>CPF do titular</Text>
+                    <Text style={styles.fieldLabel}>CPF do titular *</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, cardCpfError && styles.inputError]}
                       value={cardCpf}
                       onChangeText={handleCardCpfChange}
                       placeholder="999.999.999-99"
                       placeholderTextColor="#999"
                       keyboardType="numeric"
                       maxLength={14}
+                      onBlur={() => setTouchedPayment((t) => ({ ...t, cardCpf: true }))}
                     />
+                    {cardCpfError && <Text style={styles.errorText}>{cardCpfError}</Text>}
                   </View>
                 </View>
                 <TouchableOpacity

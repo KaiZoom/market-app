@@ -1,14 +1,16 @@
-import React, { createContext, useState, useContext, useRef, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, ReactNode } from 'react';
+import { Alert, Platform } from 'react-native';
 import { ProductWithFinalPrice } from '../models';
 import { CartModal } from '../components/CartModal';
 import { AddToCartToast } from '../components/AddToCartToast';
+import { useAuth } from './AuthContext';
 
 export interface CartItem {
   product: ProductWithFinalPrice;
   quantity: number;
 }
 
-export type CartModalNavigation = { navigate: (screen: string) => void } | null;
+export type CartModalNavigation = { navigate: (screen: string, params?: any) => void } | null;
 
 export interface AddToCartToastItem {
   product: ProductWithFinalPrice;
@@ -41,12 +43,56 @@ interface CartProviderProps {
   children: ReactNode;
 }
 
+const CART_STORAGE_KEY = '@market-app:cart';
+
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [cartModalVisible, setCartModalVisible] = useState(false);
   const [lastAddedToast, setLastAddedToast] = useState<AddToCartToastItem | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const cartModalNavigationRef = useRef<CartModalNavigation>(null);
+  const { user } = useAuth();
+
+  // Carregar carrinho do localStorage na inicialização
+  useEffect(() => {
+    const loadCart = () => {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const storedCart = localStorage.getItem(CART_STORAGE_KEY);
+          if (storedCart) {
+            const { items: storedItems, selectedMarketId: storedMarketId } = JSON.parse(storedCart);
+            if (storedItems) setItems(storedItems);
+            if (storedMarketId) setSelectedMarketId(storedMarketId);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar carrinho do localStorage:', error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    loadCart();
+  }, []);
+
+  // Salvar carrinho no localStorage sempre que items ou selectedMarketId mudarem
+  useEffect(() => {
+    // Não salvar até que o carrinho tenha sido carregado
+    if (!isLoaded) return;
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cartData = {
+          items,
+          selectedMarketId,
+        };
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData));
+      }
+    } catch (error) {
+      console.error('Erro ao salvar carrinho no localStorage:', error);
+    }
+  }, [items, selectedMarketId, isLoaded]);
 
   const clearAddToCartToast = () => setLastAddedToast(null);
 
@@ -66,7 +112,19 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   };
 
   const closeCartModalAndGoToCheckout = () => {
-    cartModalNavigationRef.current?.navigate('InformarEmail');
+    if (!cartModalNavigationRef.current) {
+      Alert.alert('Erro', 'Navegação não disponível. Tente novamente.');
+      closeCartModal();
+      return;
+    }
+    
+    // Se o usuário estiver logado, vai direto para CheckoutData
+    // Se não estiver logado, vai para InformarEmail primeiro
+    if (user) {
+      cartModalNavigationRef.current.navigate('CheckoutData', { email: user.email });
+    } else {
+      cartModalNavigationRef.current.navigate('InformarEmail');
+    }
     closeCartModal();
   };
 

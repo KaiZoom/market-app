@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,10 +36,12 @@ import {
   Package,
   User,
 } from 'lucide-react-native';
-import { ProductWithFinalPrice } from '../../models';
-import { productService } from '../../services';
+import { ProductWithFinalPrice, Market } from '../../models';
+import { productService, db } from '../../services';
 import { useCart } from '../../contexts/CartContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { ProductDetailModal } from '../../components/ProductDetailModal';
+import { AuthModal } from '../../components/AuthModal';
 import { getProductImageSource } from '../../utils/productImage';
 
 const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
@@ -163,7 +165,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { marketId, marketName } = route.params;
   const [products, setProducts] = useState<ProductWithFinalPrice[]>([]);
   const [searchText, setSearchText] = useState('');
-  const { getTotalItems, addToCart, openCartModal, items, updateQuantity } = useCart();
+  const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
   const { width } = useWindowDimensions();
 
   const isMobile = width < MOBILE_BREAKPOINT;
@@ -172,8 +174,28 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [allMarkets, setAllMarkets] = useState<Market[]>([]);
   const categoryScrollRefs = useRef<Record<string, ScrollView | null>>({});
   const bannerScrollRef = useRef<ScrollView | null>(null);
+  const { user, logout } = useAuth();
+
+  // Define o mercado selecionado no contexto do carrinho
+  useEffect(() => {
+    setMarket(marketId);
+  }, [marketId, setMarket]);
+
+  useEffect(() => {
+    const markets = db.getMarkets();
+    setAllMarkets(markets);
+  }, []);
+
+  const handleChangeMarket = useCallback((market: Market) => {
+    setMarketDropdownOpen(false);
+    navigation.push('Products', { marketId: market.id, marketName: market.name });
+  }, [navigation]);
 
   const banners = [
     { id: 1, color: '#2196F3' }, // Azul
@@ -328,12 +350,49 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                     </View>
                   </TouchableOpacity>
                   <View style={styles.mobileHeaderIcons}>
-                    <Pressable
-                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
-                      onPress={() => {}}
-                    >
-                      <User size={22} color="#2196F3" />
-                    </Pressable>
+                    <View style={styles.mobileUserButtonContainer}>
+                      <Pressable
+                        style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
+                        onPress={() => {
+                          if (user) {
+                            setUserDropdownOpen(!userDropdownOpen);
+                          } else {
+                            setAuthModalVisible(true);
+                          }
+                        }}
+                      >
+                        <User size={22} color="#2196F3" />
+                      </Pressable>
+                      {user && userDropdownOpen && (
+                        <View style={styles.mobileUserDropdownMenu}>
+                          <Pressable
+                            style={(s: { pressed: boolean }) => [
+                              styles.mobileUserDropdownItem,
+                              s.pressed && styles.mobileUserDropdownItemPressed,
+                            ]}
+                            onPress={() => {
+                              setUserDropdownOpen(false);
+                              navigation.navigate('Account');
+                            }}
+                          >
+                            <Text style={styles.mobileUserDropdownItemText}>Minha Conta</Text>
+                          </Pressable>
+                          <Pressable
+                            style={(s: { pressed: boolean }) => [
+                              styles.mobileUserDropdownItem,
+                              styles.mobileUserDropdownItemDanger,
+                              s.pressed && styles.mobileUserDropdownItemDangerPressed,
+                            ]}
+                            onPress={() => {
+                              setUserDropdownOpen(false);
+                              logout();
+                            }}
+                          >
+                            <Text style={styles.mobileUserDropdownItemTextDanger}>Sair</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
                     <Pressable
                       style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
                       onPress={() => openCartModal(navigation)}
@@ -385,6 +444,58 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                   </View>
                   <Text style={styles.logoText}>MARKET</Text>
                 </View>
+                <View style={styles.marketSelectorContainer}>
+                  <Pressable
+                    style={(state: { pressed: boolean; hovered?: boolean }) => [
+                      styles.marketSelectorButton,
+                      (state.hovered || state.pressed) && styles.marketSelectorButtonHover,
+                    ]}
+                    onPress={() => setMarketDropdownOpen(!marketDropdownOpen)}
+                  >
+                    <Text style={styles.marketSelectorLabel}>Loja:</Text>
+                    <Text style={styles.marketSelectorName} numberOfLines={1}>{marketName}</Text>
+                    <ChevronDown size={18} color="#666" />
+                  </Pressable>
+                  {marketDropdownOpen && (
+                    <View style={styles.marketDropdownMenu}>
+                      <ScrollView style={styles.marketDropdownScroll} showsVerticalScrollIndicator={true}>
+                        {allMarkets.map((market) => (
+                          <Pressable
+                            key={market.id}
+                            style={(state: { pressed: boolean; hovered?: boolean }) => [
+                              styles.marketDropdownItem,
+                              market.id === marketId && styles.marketDropdownItemActive,
+                              state.hovered && styles.marketDropdownItemHover,
+                            ]}
+                            onPress={() => handleChangeMarket(market)}
+                          >
+                            <Text style={[
+                              styles.marketDropdownItemName,
+                              market.id === marketId && styles.marketDropdownItemNameActive,
+                            ]}>
+                              {market.name}
+                            </Text>
+                            <Text style={styles.marketDropdownItemLocation}>
+                              {market.city} - {market.neighborhood}
+                            </Text>
+                          </Pressable>
+                        ))}
+                        <Pressable
+                          style={(state: { pressed: boolean; hovered?: boolean }) => [
+                            styles.marketDropdownViewAll,
+                            state.hovered && styles.marketDropdownViewAllHover,
+                          ]}
+                          onPress={() => {
+                            setMarketDropdownOpen(false);
+                            navigation.navigate('Markets');
+                          }}
+                        >
+                          <Text style={styles.marketDropdownViewAllText}>Ver todos os mercados</Text>
+                        </Pressable>
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
               </View>
             ),
             headerTitleAlign: 'center',
@@ -392,16 +503,55 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
             headerTitle: () => <SearchBar searchText={searchText} onChangeText={setSearchText} />,
             headerRight: () => (
               <View style={styles.headerRightContainer}>
-                <Pressable
-                  style={(state: { pressed: boolean; hovered?: boolean }) => [
-                    styles.headerUserButton,
-                    (state.hovered || state.pressed) && styles.headerUserButtonHover,
-                  ]}
-                  onPress={() => {}}
-                >
-                  <User size={20} color="#2196F3" />
-                  <Text style={styles.headerUserText}>Entrar</Text>
-                </Pressable>
+                <View style={styles.userButtonContainer}>
+                  <Pressable
+                    style={(state: { pressed: boolean; hovered?: boolean }) => [
+                      styles.headerUserButton,
+                      (state.hovered || state.pressed) && styles.headerUserButtonHover,
+                    ]}
+                    onPress={() => {
+                      if (user) {
+                        setUserDropdownOpen(!userDropdownOpen);
+                      } else {
+                        setAuthModalVisible(true);
+                      }
+                    }}
+                  >
+                    <User size={20} color="#2196F3" />
+                    <Text style={styles.headerUserText}>
+                      {user ? user.name.split(' ')[0] : 'Entrar'}
+                    </Text>
+                  </Pressable>
+                  {user && userDropdownOpen && (
+                    <View style={styles.userDropdownMenu}>
+                      <Pressable
+                        style={(state: { pressed: boolean; hovered?: boolean }) => [
+                          styles.userDropdownItem,
+                          state.hovered && styles.userDropdownItemHover,
+                        ]}
+                        onPress={() => {
+                          setUserDropdownOpen(false);
+                          navigation.navigate('Account');
+                        }}
+                      >
+                        <Text style={styles.userDropdownItemText}>Minha Conta</Text>
+                      </Pressable>
+                      <Pressable
+                        style={(state: { pressed: boolean; hovered?: boolean }) => [
+                          styles.userDropdownItem,
+                          styles.userDropdownItemDanger,
+                          state.hovered && styles.userDropdownItemDangerHover,
+                        ]}
+                        onPress={() => {
+                          setUserDropdownOpen(false);
+                          logout();
+                        }}
+                      >
+                        <Text style={styles.userDropdownItemTextDanger}>Sair</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
                 <Pressable
                   style={(state: { pressed: boolean; hovered?: boolean }) => [
                     styles.headerCartButton,
@@ -416,7 +566,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
             ),
           }
     );
-  }, [navigation, marketName, searchText, getTotalItems, isMobile, categories, openCartModal]);
+  }, [navigation, marketName, searchText, getTotalItems, isMobile, categories, openCartModal, user, logout, marketDropdownOpen, userDropdownOpen, allMarkets, marketId, handleChangeMarket]);
 
   const goToPrevPage = (categoryTitle: string) => {
     const currentPage = categoryPage[categoryTitle] ?? 0;
@@ -622,6 +772,12 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       {isMobile ? (
         <View style={styles.mobileWrapper}>
+          {userDropdownOpen && (
+            <Pressable
+              style={styles.mobileDropdownOverlay}
+              onPress={() => setUserDropdownOpen(false)}
+            />
+          )}
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.list}
@@ -633,6 +789,15 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
       ) : (
         <View style={styles.webRow}>
+          {(marketDropdownOpen || userDropdownOpen) && (
+            <Pressable
+              style={styles.dropdownOverlay}
+              onPress={() => {
+                setMarketDropdownOpen(false);
+                setUserDropdownOpen(false);
+              }}
+            />
+          )}
           <View style={styles.sidebar}>
             <Text style={styles.sidebarTitle}>Categorias</Text>
             {categories.map((cat) => {
@@ -706,6 +871,10 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
         onClose={() => setSelectedProduct(null)}
         onGoToCart={() => openCartModal(navigation)}
         onSelectProduct={setSelectedProduct}
+      />
+      <AuthModal
+        visible={authModalVisible}
+        onClose={() => setAuthModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -795,6 +964,107 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     letterSpacing: 1,
   },
+  marketSelectorContainer: {
+    marginLeft: 16,
+    position: 'relative',
+  },
+  marketSelectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    minWidth: 200,
+  },
+  marketSelectorButtonHover: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#2196F3',
+  },
+  marketSelectorLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  marketSelectorName: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+    flex: 1,
+  },
+  marketDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    maxHeight: 400,
+    zIndex: 1000,
+  },
+  marketDropdownScroll: {
+    maxHeight: 400,
+  },
+  marketDropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  marketDropdownItemHover: {
+    backgroundColor: '#f5f5f5',
+  },
+  marketDropdownItemActive: {
+    backgroundColor: '#e3f2fd',
+  },
+  marketDropdownItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  marketDropdownItemNameActive: {
+    color: '#2196F3',
+  },
+  marketDropdownItemLocation: {
+    fontSize: 12,
+    color: '#666',
+  },
+  marketDropdownViewAll: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 2,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+  },
+  marketDropdownViewAllHover: {
+    backgroundColor: '#e3f2fd',
+  },
+  marketDropdownViewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2196F3',
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+  },
   headerBackText: {
     fontSize: 24,
     marginRight: 12,
@@ -858,17 +1128,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2196F3',
   },
-  headerCartButton: {
-    backgroundColor: '#4CAF50',
+  userButtonContainer: {
+    position: 'relative',
+  },
+  userDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 180,
+    zIndex: 1001,
+  },
+  userDropdownItem: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  userDropdownItemHover: {
+    backgroundColor: '#f5f5f5',
+  },
+  userDropdownItemDanger: {
+    borderBottomWidth: 0,
+  },
+  userDropdownItemDangerHover: {
+    backgroundColor: '#ffebee',
+  },
+  userDropdownItemText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  userDropdownItemTextDanger: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#F44336',
+  },
+  headerCartButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   headerCartButtonHover: {
-    backgroundColor: '#388E3C',
+    backgroundColor: '#1976D2',
+    shadowOpacity: 0.4,
   },
   mobileHeaderRoot: {
     backgroundColor: '#fff',
@@ -928,6 +1249,51 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
+  mobileUserButtonContainer: {
+    position: 'relative',
+  },
+  mobileUserDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 160,
+    zIndex: 1002,
+  },
+  mobileUserDropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  mobileUserDropdownItemPressed: {
+    backgroundColor: '#f5f5f5',
+  },
+  mobileUserDropdownItemDanger: {
+    borderBottomWidth: 0,
+  },
+  mobileUserDropdownItemDangerPressed: {
+    backgroundColor: '#ffebee',
+  },
+  mobileUserDropdownItemText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  mobileUserDropdownItemTextDanger: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#F44336',
+  },
   mobileSearchRow: {
     marginBottom: 12,
     alignSelf: 'stretch',
@@ -961,14 +1327,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   cartButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   cartButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 15,
   },
   categoryStrip: {
     backgroundColor: '#fff',
@@ -1084,6 +1456,15 @@ const styles = StyleSheet.create({
   },
   mobileWrapper: {
     flex: 1,
+  },
+  mobileDropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1001,
+    backgroundColor: 'transparent',
   },
   searchInput: {
     flex: 1,
@@ -1283,13 +1664,15 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontFamily: 'BricolageGrotesque_400Regular',
-    fontSize: 12,
+    fontSize: 14,
     color: '#333',
+    fontWeight: '500',
   },
   productNameMobile: {
     fontFamily: 'BricolageGrotesque_400Regular',
-    fontSize: 13,
+    fontSize: 15,
     color: '#333',
+    fontWeight: '500',
   },
   quickAddButtonOverlay: {
     position: 'absolute',

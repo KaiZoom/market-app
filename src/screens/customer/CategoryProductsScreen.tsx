@@ -151,9 +151,14 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const { getTotalItems, addToCart, openCartModal, items, updateQuantity } = useCart();
+  const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
   const { width } = useWindowDimensions();
   const bannerScrollRef = useRef<ScrollView | null>(null);
+
+  // Define o mercado selecionado no contexto do carrinho
+  useEffect(() => {
+    setMarket(marketId);
+  }, [marketId, setMarket]);
 
   const banners = [
     { id: 1, color: '#2196F3' }, // Azul

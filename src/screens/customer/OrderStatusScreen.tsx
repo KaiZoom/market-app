@@ -12,6 +12,7 @@ import {
 import { ArrowLeft, Check, Package, Truck } from 'lucide-react-native';
 import { orderService } from '../../services';
 import { Order } from '../../models';
+import { useAuth } from '../../contexts/AuthContext';
 
 export type OrderStatusStep = 'confirmado' | 'preparo' | 'entrega' | 'finalizado';
 
@@ -56,6 +57,7 @@ function getPaymentLabel(method: string | undefined): string {
 export const OrderStatusScreen: React.FC<Props> = ({ route, navigation }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const { user } = useAuth();
 
   const params = route.params as OrderStatusParams | undefined;
   const orderId = params?.orderId ?? '';
@@ -83,7 +85,7 @@ export const OrderStatusScreen: React.FC<Props> = ({ route, navigation }) => {
   const totalAmount = params?.totalAmount ?? order?.totalAmount ?? 0;
 
   const handleVoltar = () => {
-    navigation.navigate('Markets');
+    navigation.goBack();
   };
 
   if (loading && orderId) {
