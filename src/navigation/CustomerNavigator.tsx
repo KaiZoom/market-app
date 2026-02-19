@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MarketSelectionScreen } from '../screens/customer/MarketSelectionScreen';
 import { ProductsScreen } from '../screens/customer/ProductsScreen';
 import { CategoryProductsScreen } from '../screens/customer/CategoryProductsScreen';
+import { SearchResultsScreen } from '../screens/customer/SearchResultsScreen';
 import { AccountScreen } from '../screens/customer/AccountScreen';
 import { InformarEmailScreen } from '../screens/customer/InformarEmailScreen';
 import { CheckoutDataScreen } from '../screens/customer/CheckoutDataScreen';
@@ -68,6 +69,11 @@ export const CustomerNavigator: React.FC = () => {
         name="CategoryProducts"
         component={CategoryProductsScreen}
         options={{ title: 'Categoria' }}
+      />
+      <Stack.Screen
+        name="SearchResults"
+        component={SearchResultsScreen}
+        options={{ title: 'Busca' }}
       />
       <Stack.Screen
         name="Account"

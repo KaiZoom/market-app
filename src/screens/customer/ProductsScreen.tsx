@@ -41,6 +41,7 @@ import { productService, db } from '../../services';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProductDetailModal } from '../../components/ProductDetailModal';
+import { SearchSuggestionsDropdown } from '../../components/SearchSuggestionsDropdown';
 import { AuthModal } from '../../components/AuthModal';
 import { getProductImageSource } from '../../utils/productImage';
 
@@ -71,13 +72,30 @@ interface CartButtonsOverlayProps {
   onQuantityChange: (newQty: number, e?: any) => void;
 }
 
-const SearchBar: React.FC<{ searchText: string; onChangeText: (text: string) => void }> = ({ searchText, onChangeText }) => {
+const SearchBar: React.FC<{
+  searchText: string;
+  onChangeText: (text: string) => void;
+  onSearchSubmit?: () => void;
+}> = ({ searchText, onChangeText, onSearchSubmit }) => {
   const [isFocused, setIsFocused] = useState(false);
-  
+
+  const handleSubmit = () => {
+    if (searchText.trim().length >= 2 && onSearchSubmit) {
+      onSearchSubmit();
+    }
+  };
+
   return (
     <View style={styles.headerSearchWrapper}>
       <View style={[styles.headerSearchContainer, isFocused && styles.headerSearchContainerFocused]}>
-        <Search size={18} color={isFocused ? "#2196F3" : "#888"} style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
+        <TouchableOpacity
+          onPress={handleSubmit}
+          style={styles.searchIconTouchable}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Search size={18} color={isFocused ? "#2196F3" : "#888"} style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
+        </TouchableOpacity>
         <TextInput
           style={[styles.headerSearchInput, { outlineStyle: 'none', outlineWidth: 0, outlineColor: 'transparent' } as any]}
           placeholder="Buscar produtos..."
@@ -86,6 +104,8 @@ const SearchBar: React.FC<{ searchText: string; onChangeText: (text: string) => 
           placeholderTextColor="#888"
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          onSubmitEditing={handleSubmit}
+          returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
           selectionColor="#2196F3"
@@ -165,6 +185,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { marketId, marketName } = route.params;
   const [products, setProducts] = useState<ProductWithFinalPrice[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [searchBarWidth, setSearchBarWidth] = useState<number | null>(null);
   const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
   const { width } = useWindowDimensions();
 
@@ -182,7 +203,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const bannerScrollRef = useRef<ScrollView | null>(null);
   const { user, logout } = useAuth();
 
-  // Define o mercado selecionado no contexto do carrinho
+  // Define o mercado selecionado no contexto do carrinho (setMarket estável via useCallback no contexto)
   useEffect(() => {
     setMarket(marketId);
   }, [marketId, setMarket]);
@@ -267,17 +288,9 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     [products],
   );
 
+  // Lista por categoria sem filtro por busca; a busca abre o modal de sugestões
   const sections = useMemo((): Section[] => {
-    const query = searchText.trim().toLowerCase();
-    const filtered = query
-      ? products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(query) ||
-            p.category.toLowerCase().includes(query),
-        )
-      : products;
-
-    const byCategory = filtered.reduce<Record<string, ProductWithFinalPrice[]>>(
+    const byCategory = products.reduce<Record<string, ProductWithFinalPrice[]>>(
       (acc, product) => {
         const cat = product.category;
         if (!acc[cat]) acc[cat] = [];
@@ -291,6 +304,17 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       title,
       items,
     }));
+  }, [products]);
+
+  // Resultados da pesquisa (mock: filtra produtos do mercado pelo termo)
+  const searchResults = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (query.length < 2) return [];
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.category.toLowerCase().includes(query),
+    );
   }, [products, searchText]);
 
   const handlePressCard = (product: ProductWithFinalPrice) => {
@@ -326,9 +350,17 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     navigation.navigate('CategoryProducts', { marketId, marketName, category });
   };
 
+  const handleSearchSubmit = useCallback(() => {
+    const q = searchText.trim();
+    if (q.length >= 2) {
+      navigation.navigate('SearchResults', { marketId, marketName, searchQuery: q });
+      setSearchText('');
+    }
+  }, [searchText, marketId, marketName, navigation]);
+
   useEffect(() => {
     navigation.setOptions(
-      isMobile
+          isMobile
         ? {
             headerStyle: { minHeight: 200 },
             header: () => (
@@ -404,7 +436,19 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                 </View>
                 <View style={styles.mobileSearchRow}>
                   <View style={styles.mobileSearchContainer}>
-                    <Search size={18} color="#888" style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
+                    <TouchableOpacity
+                      onPress={() => {
+                      if (searchText.trim().length >= 2) {
+                        navigation.navigate('SearchResults', { marketId, marketName, searchQuery: searchText.trim() });
+                        setSearchText('');
+                      }
+                    }}
+                      style={styles.searchIconTouchable}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Search size={18} color="#888" style={[styles.searchIcon, { outlineStyle: 'none', outlineWidth: 0 } as any]} />
+                    </TouchableOpacity>
                     <TextInput
                       style={[styles.headerSearchInput, styles.mobileSearchInput, { outlineStyle: 'none', outlineWidth: 0, outlineColor: 'transparent' } as any]}
                       placeholder="Leite, arroz, pão, vinho, frutas..."
@@ -413,6 +457,13 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
                       placeholderTextColor="#999"
                       selectionColor="#2196F3"
                       editable={true}
+                      onSubmitEditing={() => {
+                      if (searchText.trim().length >= 2) {
+                        navigation.navigate('SearchResults', { marketId, marketName, searchQuery: searchText.trim() });
+                        setSearchText('');
+                      }
+                    }}
+                      returnKeyType="search"
                     />
                   </View>
                 </View>
@@ -499,8 +550,15 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
               </View>
             ),
             headerTitleAlign: 'center',
-            headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'stretch' },
-            headerTitle: () => <SearchBar searchText={searchText} onChangeText={setSearchText} />,
+            headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' },
+            headerTitle: () => (
+              <View
+                style={styles.headerSearchBarWrap}
+                onLayout={(e) => setSearchBarWidth(e.nativeEvent.layout.width)}
+              >
+                <SearchBar searchText={searchText} onChangeText={setSearchText} onSearchSubmit={handleSearchSubmit} />
+              </View>
+            ),
             headerRight: () => (
               <View style={styles.headerRightContainer}>
                 <View style={styles.userButtonContainer}>
@@ -566,7 +624,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
             ),
           }
     );
-  }, [navigation, marketName, searchText, getTotalItems, isMobile, categories, openCartModal, user, logout, marketDropdownOpen, userDropdownOpen, allMarkets, marketId, handleChangeMarket]);
+  }, [navigation, marketName, searchText, getTotalItems, isMobile, categories, openCartModal, user, logout, marketDropdownOpen, userDropdownOpen, allMarkets, marketId, handleChangeMarket, handleSearchSubmit]);
 
   const goToPrevPage = (categoryTitle: string) => {
     const currentPage = categoryPage[categoryTitle] ?? 0;
@@ -770,6 +828,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.contentWrap}>
       {isMobile ? (
         <View style={styles.mobileWrapper}>
           {userDropdownOpen && (
@@ -864,6 +923,14 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
         </View>
       )}
+      </View>
+      {searchText.trim().length >= 2 && (
+        <View style={styles.searchDropdownWrap} pointerEvents="box-none">
+          <View style={[styles.searchDropdownInner, searchBarWidth != null && { width: searchBarWidth }]}>
+            <SearchSuggestionsDropdown searchTerm={searchText.trim()} results={searchResults} />
+          </View>
+        </View>
+      )}
       <ProductDetailModal
         visible={!!selectedProduct}
         product={selectedProduct}
@@ -884,6 +951,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  contentWrap: {
+    flex: 1,
+  },
+  headerSearchBarWrap: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'center',
+  },
+  searchDropdownWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 0,
+    zIndex: 10,
+    elevation: 10,
+    alignItems: 'center',
+  },
+  searchDropdownInner: {
+    width: '100%',
+    paddingHorizontal: 0,
   },
   bannerContainer: {
     height: 240,
@@ -1085,9 +1174,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 8,
     paddingHorizontal: 12,
-    height: 60,
+    height: 52,
     width: '100%',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: 'transparent',
   },
   headerSearchContainerFocused: {
@@ -1096,6 +1185,12 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     marginRight: 8,
+  },
+  searchIconTouchable: {
+    marginRight: 0,
+    padding: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerSearchInput: {
     flex: 1,
@@ -1302,13 +1397,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#e8e8e8',
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 12,
-    height: 45,
-    minHeight: 45,
+    height: 48,
+    minHeight: 48,
   },
   mobileSearchInput: {
-    minHeight: 45,
+    minHeight: 48,
+    fontSize: 16,
   },
   mobileCategoryRow: {
     flexDirection: 'row',

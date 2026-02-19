@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useRef, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { Alert, Platform } from 'react-native';
 import { ProductWithFinalPrice } from '../models';
 import { CartModal } from '../components/CartModal';
@@ -94,124 +94,135 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
   }, [items, selectedMarketId, isLoaded]);
 
-  const clearAddToCartToast = () => setLastAddedToast(null);
+  const clearAddToCartToast = useCallback(() => setLastAddedToast(null), []);
 
-  const openCartModal = (navigation?: CartModalNavigation) => {
-    cartModalNavigationRef.current = navigation ?? null;
-    setCartModalVisible(true);
-  };
-
-  const closeCartModal = () => {
+  const closeCartModal = useCallback(() => {
     setCartModalVisible(false);
     cartModalNavigationRef.current = null;
-  };
+  }, []);
 
-  const closeCartModalAndGoToMarkets = () => {
+  const openCartModal = useCallback((navigation?: CartModalNavigation) => {
+    cartModalNavigationRef.current = navigation ?? null;
+    setCartModalVisible(true);
+  }, []);
+
+  const closeCartModalAndGoToMarkets = useCallback(() => {
     cartModalNavigationRef.current?.navigate('Markets');
     closeCartModal();
-  };
+  }, [closeCartModal]);
 
-  const closeCartModalAndGoToCheckout = () => {
+  const closeCartModalAndGoToCheckout = useCallback(() => {
     if (!cartModalNavigationRef.current) {
       Alert.alert('Erro', 'Navegação não disponível. Tente novamente.');
       closeCartModal();
       return;
     }
-    
-    // Se o usuário estiver logado, vai direto para CheckoutData
-    // Se não estiver logado, vai para InformarEmail primeiro
     if (user) {
       cartModalNavigationRef.current.navigate('CheckoutData', { email: user.email });
     } else {
       cartModalNavigationRef.current.navigate('InformarEmail');
     }
     closeCartModal();
-  };
+  }, [user, closeCartModal]);
 
-  const addToCart = (product: ProductWithFinalPrice, quantity: number) => {
-    // Validar estoque
+  const clearCart = useCallback(() => setItems([]), []);
+
+  const setMarket = useCallback((marketId: string) => {
+    if (selectedMarketId != null && selectedMarketId !== marketId) {
+      setItems([]);
+    }
+    setSelectedMarketId(marketId);
+  }, [selectedMarketId]);
+
+  const removeFromCart = useCallback((productId: string) => {
+    setItems((current) => current.filter((item) => item.product.id !== productId));
+  }, []);
+
+  const updateQuantity = useCallback((productId: string, quantity: number) => {
+    setItems((current) => {
+      const item = current.find((i) => i.product.id === productId);
+      if (!item) return current;
+      if (quantity > item.product.stock) {
+        throw new Error('Quantidade solicitada maior que o estoque disponível');
+      }
+      if (quantity <= 0) {
+        return current.filter((i) => i.product.id !== productId);
+      }
+      return current.map((i) =>
+        i.product.id === productId ? { ...i, quantity } : i
+      );
+    });
+  }, []);
+
+  const addToCart = useCallback((product: ProductWithFinalPrice, quantity: number) => {
     if (quantity > product.stock) {
       throw new Error('Quantidade solicitada maior que o estoque disponível');
     }
-
-    const existingItem = items.find(item => item.product.id === product.id);
-
-    if (existingItem) {
-      const newQuantity = existingItem.quantity + quantity;
-      if (newQuantity > product.stock) {
-        throw new Error('Quantidade total maior que o estoque disponível');
+    setItems((current) => {
+      const existingItem = current.find((item) => item.product.id === product.id);
+      if (existingItem) {
+        const newQuantity = existingItem.quantity + quantity;
+        if (newQuantity > product.stock) {
+          throw new Error('Quantidade total maior que o estoque disponível');
+        }
+        return current.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: newQuantity } : item
+        );
       }
-      updateQuantity(product.id, newQuantity);
-    } else {
-      setItems([...items, { product, quantity }]);
-    }
+      return [...current, { product, quantity }];
+    });
     setLastAddedToast({ product, quantityAdded: quantity });
-  };
+  }, []);
 
-  const removeFromCart = (productId: string) => {
-    setItems(items.filter(item => item.product.id !== productId));
-  };
+  const getTotalAmount = useCallback(() => {
+    return items.reduce((total, item) => total + item.product.finalPrice * item.quantity, 0);
+  }, [items]);
 
-  const updateQuantity = (productId: string, quantity: number) => {
-    const item = items.find(item => item.product.id === productId);
-
-    if (item && quantity > item.product.stock) {
-      throw new Error('Quantidade solicitada maior que o estoque disponível');
-    }
-
-    if (quantity <= 0) {
-      removeFromCart(productId);
-    } else {
-      setItems(
-        items.map(item =>
-          item.product.id === productId ? { ...item, quantity } : item
-        )
-      );
-    }
-  };
-
-  const clearCart = () => {
-    setItems([]);
-  };
-
-  const setMarket = (marketId: string) => {
-    if (selectedMarketId && selectedMarketId !== marketId) {
-      clearCart();
-    }
-    setSelectedMarketId(marketId);
-  };
-
-  const getTotalAmount = () => {
-    return items.reduce((total, item) => {
-      return total + item.product.finalPrice * item.quantity;
-    }, 0);
-  };
-
-  const getTotalItems = () => {
+  const getTotalItems = useCallback(() => {
     return items.reduce((total, item) => total + item.quantity, 0);
-  };
+  }, [items]);
+
+  const value = useMemo(
+    () => ({
+      items,
+      selectedMarketId,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      setMarket,
+      getTotalAmount,
+      getTotalItems,
+      cartModalVisible,
+      openCartModal,
+      closeCartModal,
+      closeCartModalAndGoToMarkets,
+      closeCartModalAndGoToCheckout,
+      lastAddedToast,
+      clearAddToCartToast,
+    }),
+    [
+      items,
+      selectedMarketId,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      setMarket,
+      getTotalAmount,
+      getTotalItems,
+      cartModalVisible,
+      openCartModal,
+      closeCartModal,
+      closeCartModalAndGoToMarkets,
+      closeCartModalAndGoToCheckout,
+      lastAddedToast,
+      clearAddToCartToast,
+    ]
+  );
 
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        selectedMarketId,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        setMarket,
-        getTotalAmount,
-        getTotalItems,
-        cartModalVisible,
-        openCartModal,
-        closeCartModal,
-        closeCartModalAndGoToMarkets,
-        closeCartModalAndGoToCheckout,
-        lastAddedToast,
-        clearAddToCartToast,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
       <CartModal />
       <AddToCartToast />
