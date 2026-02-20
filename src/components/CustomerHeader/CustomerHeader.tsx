@@ -9,8 +9,8 @@ import {
   Platform,
 } from 'react-native';
 import { ArrowLeft, ChevronDown, ShoppingBag, User, ShoppingCart } from 'lucide-react-native';
-import { ProductWithFinalPrice, Market } from '../models';
-import { SearchBarWithSuggestions } from './SearchBarWithSuggestions';
+import { ProductWithFinalPrice, Market } from '../../models';
+import { SearchBarWithSuggestions } from '../SearchBarWithSuggestions';
 
 const IS_WEB = Platform.OS === 'web';
 

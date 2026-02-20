@@ -1,48 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import {
-  ArrowLeft,
-  ShoppingBag,
-  Package,
-  Utensils,
-  GlassWater,
-  Sparkles,
-  ShowerHead,
-  Croissant,
-  Drumstick,
-  Apple,
-  Sandwich,
-  Milk,
-  Snowflake,
-} from 'lucide-react-native';
+import { ArrowLeft, ShoppingBag } from 'lucide-react-native';
+import { useCategoriesSidebar, getCategoryIcon } from './hooks/useCategoriesSidebar';
 
 export const SIDEBAR_WIDTH = 280;
 
-const getCategoryIcon = (category: string): { Icon: any; color: string } => {
-  const iconMap: Record<string, { Icon: any; color: string }> = {
-    Alimentos: { Icon: Utensils, color: '#FF9800' },
-    Bebidas: { Icon: GlassWater, color: '#2196F3' },
-    Limpeza: { Icon: Sparkles, color: '#00BCD4' },
-    Higiene: { Icon: ShowerHead, color: '#9C27B0' },
-    Padaria: { Icon: Croissant, color: '#FFC107' },
-    Açougue: { Icon: Drumstick, color: '#F44336' },
-    Hortifruti: { Icon: Apple, color: '#4CAF50' },
-    Refrigerados: { Icon: Snowflake, color: '#00ACC1' },
-    Frios: { Icon: Sandwich, color: '#FFEB3B' },
-    Laticínios: { Icon: Milk, color: '#E0E0E0' },
-    Mercearia: { Icon: ShoppingBag, color: '#795548' },
-  };
-  return iconMap[category] || { Icon: Package, color: '#757575' };
-};
-
 export interface CategoriesSidebarProps {
   categories: string[];
-  /** Categoria selecionada (ex.: tela de categoria) — aplica estilo ativo */
   currentCategory?: string;
-  /** Exibir item "Todos" no topo */
   showAllItem?: boolean;
   onAllPress?: () => void;
-  /** Exibir item "Voltar do mercado" no final */
   showBackItem?: boolean;
   onBackPress?: () => void;
   onCategoryPress: (category: string) => void;
@@ -57,13 +24,7 @@ export const CategoriesSidebar: React.FC<CategoriesSidebarProps> = ({
   onBackPress,
   onCategoryPress,
 }) => {
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-
-  const hoverProps = (id: string) =>
-    ({
-      onMouseEnter: () => setHoveredCategory(id),
-      onMouseLeave: () => setHoveredCategory(null),
-    } as any);
+  const { hoveredCategory, hoverProps } = useCategoriesSidebar();
 
   const content = (
     <>
@@ -73,7 +34,7 @@ export const CategoriesSidebar: React.FC<CategoriesSidebarProps> = ({
         <Pressable
           style={[styles.sidebarButton, hoveredCategory === '__todos__' && styles.sidebarButtonHovered]}
           onPress={onAllPress}
-          {...hoverProps('__todos__')}
+          {...(hoverProps('__todos__') as any)}
         >
           <View style={styles.sidebarButtonContent}>
             <View style={[styles.categoryIconContainer, { backgroundColor: '#2196F320' }]}>
@@ -99,7 +60,7 @@ export const CategoriesSidebar: React.FC<CategoriesSidebarProps> = ({
               hoveredCategory === cat && styles.sidebarButtonHovered,
             ]}
             onPress={() => onCategoryPress(cat)}
-            {...hoverProps(cat)}
+            {...(hoverProps(cat) as any)}
           >
             <View style={styles.sidebarButtonContent}>
               <View style={[styles.categoryIconContainer, { backgroundColor: `${color}20` }]}>
@@ -128,7 +89,7 @@ export const CategoriesSidebar: React.FC<CategoriesSidebarProps> = ({
             hoveredCategory === '__voltar__' && styles.sidebarButtonHovered,
           ]}
           onPress={onBackPress}
-          {...hoverProps('__voltar__')}
+          {...(hoverProps('__voltar__') as any)}
         >
           <View style={styles.sidebarButtonContent}>
             <View style={[styles.categoryIconContainer, { backgroundColor: '#2196F320' }]}>

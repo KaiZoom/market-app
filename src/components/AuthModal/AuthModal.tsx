@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,83 +6,35 @@ import {
   TouchableOpacity,
   Modal,
   StyleSheet,
-  Alert,
   ScrollView,
   Pressable,
 } from 'react-native';
 import { X } from 'lucide-react-native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthModal } from './hooks/useAuthModal';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-type TabType = 'login' | 'signup';
-
 export const AuthModal: React.FC<Props> = ({ visible, onClose }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const { login, register } = useAuth();
-
-  const resetForm = () => {
-    setName('');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
-
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Erro', 'Preencha todos os campos');
-      return;
-    }
-
-    try {
-      await login(email, password);
-      Alert.alert('Sucesso', 'Login realizado com sucesso!');
-      handleClose();
-    } catch (error: any) {
-      Alert.alert('Erro', error.message);
-    }
-  };
-
-  const handleSignUp = async () => {
-    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-      Alert.alert('Erro', 'Preencha todos os campos');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem');
-      return;
-    }
-
-    try {
-      await register(name, email, password);
-      Alert.alert('Sucesso', 'Conta criada com sucesso!');
-      handleClose();
-    } catch (error: any) {
-      Alert.alert('Erro', error.message);
-    }
-  };
-
-  const quickLogin = async (userEmail: string, userPassword: string) => {
-    try {
-      await login(userEmail, userPassword);
-      handleClose();
-    } catch (error: any) {
-      Alert.alert('Erro', error.message);
-    }
-  };
+  const {
+    activeTab,
+    name,
+    setName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    handleClose,
+    handleLogin,
+    handleSignUp,
+    quickLogin,
+    setTabLogin,
+    setTabSignup,
+  } = useAuthModal(onClose);
 
   return (
     <Modal
@@ -105,10 +57,7 @@ export const AuthModal: React.FC<Props> = ({ visible, onClose }) => {
           <View style={styles.tabContainer}>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'login' && styles.tabActive]}
-              onPress={() => {
-                setActiveTab('login');
-                resetForm();
-              }}
+              onPress={setTabLogin}
             >
               <Text style={[styles.tabText, activeTab === 'login' && styles.tabTextActive]}>
                 Login
@@ -116,10 +65,7 @@ export const AuthModal: React.FC<Props> = ({ visible, onClose }) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'signup' && styles.tabActive]}
-              onPress={() => {
-                setActiveTab('signup');
-                resetForm();
-              }}
+              onPress={setTabSignup}
             >
               <Text style={[styles.tabText, activeTab === 'signup' && styles.tabTextActive]}>
                 Criar Conta

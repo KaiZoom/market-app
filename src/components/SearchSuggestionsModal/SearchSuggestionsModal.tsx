@@ -12,11 +12,11 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Plus, Minus, Trash } from 'lucide-react-native';
-import { ProductWithFinalPrice } from '../models';
-import { useCart } from '../contexts/CartContext';
-import { getProductImageSource } from '../utils/productImage';
+import { ProductWithFinalPrice } from '../../models';
+import { getProductImageSource } from '../../utils/productImage';
+import { useSearchSuggestionsModal } from './hooks/useSearchSuggestionsModal';
 
-const DEFAULT_PRODUCT_IMAGE = require('../../assets/agua-sanitaria.png');
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 const SEARCH_BAR_HORIZONTAL_PADDING = 16;
 
@@ -37,7 +37,7 @@ export const SearchSuggestionsModal: React.FC<SearchSuggestionsModalProps> = ({
   headerHeight = 90,
 }) => {
   const { width } = useWindowDimensions();
-  const { items, addToCart, updateQuantity, removeFromCart } = useCart();
+  const { items, addToCart, updateQuantity, removeFromCart } = useSearchSuggestionsModal();
 
   const cartQtyMap = React.useMemo(() => {
     const m = new Map<string, number>();

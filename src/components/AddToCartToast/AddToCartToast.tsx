@@ -1,68 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  Animated,
-  useWindowDimensions,
-  Platform,
-} from 'react-native';
-import { useCart } from '../contexts/CartContext';
-import { getProductImageSource } from '../utils/productImage';
-import { truncateProductName } from '../utils/productName';
+import React from 'react';
+import { View, Text, StyleSheet, Image, Animated } from 'react-native';
+import { getProductImageSource } from '../../utils/productImage';
+import { truncateProductName } from '../../utils/productName';
+import { useAddToCartToast } from './hooks/useAddToCartToast';
 
-const DEFAULT_PRODUCT_IMAGE = require('../../assets/agua-sanitaria.png');
-
-const TOAST_DURATION_MS = 3500;
-const BOTTOM_OFFSET = Platform.OS === 'web' ? 24 : 88;
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 export const AddToCartToast: React.FC = () => {
-  const { lastAddedToast, clearAddToCartToast } = useCart();
-  const { width } = useWindowDimensions();
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(24)).current;
-
-  useEffect(() => {
-    if (!lastAddedToast) return;
-
-    const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 24,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => clearAddToCartToast());
-    }, TOAST_DURATION_MS);
-
-    opacity.setValue(0);
-    translateY.setValue(24);
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    return () => clearTimeout(timer);
-  }, [lastAddedToast?.product.id, lastAddedToast?.quantityAdded]);
+  const { lastAddedToast, opacity, translateY, toastWidth, bottomOffset } = useAddToCartToast();
 
   if (!lastAddedToast) return null;
 
   const { product, quantityAdded } = lastAddedToast;
-  const toastWidth = Math.min(400, width - 32);
   const secondLine = product.subcategory
     ? `${product.category} - ${product.subcategory}`
     : product.category;
@@ -73,7 +22,7 @@ export const AddToCartToast: React.FC = () => {
       style={[
         styles.wrap,
         {
-          bottom: BOTTOM_OFFSET,
+          bottom: bottomOffset,
           opacity,
           transform: [{ translateY }],
         },

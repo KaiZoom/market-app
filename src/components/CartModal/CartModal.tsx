@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,115 +7,33 @@ import {
   StyleSheet,
   Modal,
   Pressable,
-  Alert,
   Animated,
-  useWindowDimensions,
   SafeAreaView,
   Image,
 } from 'react-native';
 import { Trash, ShoppingCart, X, MoreVertical, Plus, Minus } from 'lucide-react-native';
-import { useCart } from '../contexts/CartContext';
-import { getProductImageSource } from '../utils/productImage';
-import { truncateProductName } from '../utils/productName';
-import type { CartItem } from '../contexts/CartContext';
+import { getProductImageSource } from '../../utils/productImage';
+import { truncateProductName } from '../../utils/productName';
+import type { CartItem } from '../../contexts/CartContext';
+import { useCartModal } from './hooks/useCartModal';
+import type { CartSection } from './hooks/useCartModal';
 
-const DEFAULT_PRODUCT_IMAGE = require('../../assets/agua-sanitaria.png');
-
-const PANEL_WIDTH_MAX = 420;
-const PANEL_WIDTH_PERCENT = 0.9;
-const MOBILE_BREAKPOINT = 768;
-
-interface CartSection {
-  title: string;
-  data: CartItem[];
-}
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 export const CartModal: React.FC = () => {
-  const { width } = useWindowDimensions();
-  const isMobile = width < MOBILE_BREAKPOINT;
-  const panelWidth = isMobile ? width : Math.min(PANEL_WIDTH_MAX, width * PANEL_WIDTH_PERCENT);
-  const slideAnim = useRef(new Animated.Value(panelWidth)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-
   const {
     items,
     removeFromCart,
-    updateQuantity,
-    clearCart,
     getTotalAmount,
-    selectedMarketId,
     cartModalVisible,
     closeCartModal,
-    closeCartModalAndGoToMarkets,
-    closeCartModalAndGoToCheckout,
-  } = useCart();
-
-  useEffect(() => {
-    const w = isMobile ? width : Math.min(PANEL_WIDTH_MAX, width * PANEL_WIDTH_PERCENT);
-    if (cartModalVisible) {
-      slideAnim.setValue(w);
-      overlayOpacity.setValue(0);
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: w,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [cartModalVisible, width, isMobile]);
-
-  const handleCheckout = () => {
-    if (items.length === 0) {
-      Alert.alert('Carrinho vazio', 'Adicione produtos ao carrinho antes de finalizar.');
-      return;
-    }
-
-    if (!selectedMarketId) {
-      Alert.alert('Erro', 'Selecione um mercado antes de finalizar.');
-      return;
-    }
-
-    closeCartModalAndGoToCheckout();
-  };
-
-  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
-    try {
-      updateQuantity(productId, newQuantity);
-    } catch (error: unknown) {
-      Alert.alert('Erro', error instanceof Error ? error.message : 'Erro');
-    }
-  };
-
-  const sections = useMemo((): CartSection[] => {
-    const byCategory = items.reduce<Record<string, CartItem[]>>((acc, item) => {
-      const cat = item.product.category || 'Outros';
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(item);
-      return acc;
-    }, {});
-    return Object.entries(byCategory)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([title, data]) => ({ title, data }));
-  }, [items]);
+    handleCheckout,
+    handleUpdateQuantity,
+    sections,
+    panelWidth,
+    slideAnim,
+    overlayOpacity,
+  } = useCartModal();
 
   const renderSectionHeader = ({ section }: { section: CartSection }) => (
     <View style={styles.sectionHeader}>
@@ -187,12 +105,7 @@ export const CartModal: React.FC = () => {
     <Modal visible={cartModalVisible} transparent animationType="none" onRequestClose={closeCartModal}>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         <Animated.View
-          style={[
-            styles.overlay,
-            {
-              opacity: overlayOpacity,
-            },
-          ]}
+          style={[styles.overlay, { opacity: overlayOpacity }]}
           pointerEvents="box-none"
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={closeCartModal} />
@@ -286,10 +199,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,11 +211,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerIconText: {
-    fontSize: 20,
-    color: '#333',
-    fontWeight: '600',
   },
   list: {
     paddingHorizontal: 16,
@@ -384,11 +288,6 @@ const styles = StyleSheet.create({
   removeButtonContainer: {
     padding: 4,
   },
-  removeButton: {
-    fontSize: 13,
-    color: '#F44336',
-    fontWeight: '600',
-  },
   quantityWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,11 +300,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  qtyButtonText: {
-    fontSize: 18,
-    color: '#333',
-    fontWeight: '600',
   },
   quantity: {
     fontSize: 16,

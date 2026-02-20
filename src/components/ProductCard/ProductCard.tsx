@@ -1,18 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Image, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Plus, Minus } from 'lucide-react-native';
-import { ProductWithFinalPrice } from '../models';
-import { getProductImageSource } from '../utils/productImage';
-import { truncateProductName } from '../utils/productName';
+import { ProductWithFinalPrice } from '../../models';
+import { getProductImageSource } from '../../utils/productImage';
+import { truncateProductName } from '../../utils/productName';
+import { useProductCard, cardDimensions } from './hooks/useProductCard';
 
-const DEFAULT_PRODUCT_IMAGE = require('../../assets/agua-sanitaria.png');
-
-/** Tamanho da imagem = size - 24; altura mínima do card = imageSize + 64 */
-function cardDimensions(size: number) {
-  const imageSize = size - 24;
-  const cardMinHeight = imageSize + 64;
-  return { imageSize, cardMinHeight };
-}
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 interface CartButtonsOverlayProps {
   product: ProductWithFinalPrice;
@@ -68,13 +62,11 @@ const CartButtonsOverlay: React.FC<CartButtonsOverlayProps> = ({
 export interface ProductCardProps {
   product: ProductWithFinalPrice;
   cartQty: number;
-  /** Largura do card (itemSize). Imagem = size - 24. */
   size: number;
   isMobile?: boolean;
   onPress: (product: ProductWithFinalPrice) => void;
   onQuickAdd: (product: ProductWithFinalPrice) => void;
   onQuantityChange: (product: ProductWithFinalPrice, newQty: number, e?: any) => void;
-  /** Imagem padrão quando o produto não tem imagem (require). */
   defaultImage?: number;
 }
 
@@ -88,7 +80,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onQuantityChange,
   defaultImage = DEFAULT_PRODUCT_IMAGE,
 }) => {
-  const [hovered, setHovered] = useState(false);
+  const { hovered, onMouseEnter, onMouseLeave } = useProductCard();
   const { imageSize, cardMinHeight } = cardDimensions(size);
 
   return (
@@ -98,15 +90,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         { width: size, minHeight: cardMinHeight },
         hovered && styles.productCardHover,
       ]}
-      {...({
-        onMouseEnter: () => setHovered(true),
-        onMouseLeave: (e: any) => {
-          const related = e?.nativeEvent?.relatedTarget;
-          const current = e?.currentTarget;
-          if (current && related && current.contains(related)) return;
-          setHovered(false);
-        },
-      } as any)}
+      {...({ onMouseEnter, onMouseLeave } as any)}
     >
       <TouchableOpacity
         style={styles.productCardTouchable}

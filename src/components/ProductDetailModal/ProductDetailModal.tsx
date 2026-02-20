@@ -1,32 +1,27 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
   TouchableOpacity,
-  Alert,
   Pressable,
   ScrollView,
   Image,
-  useWindowDimensions,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { ChevronRight, ChevronLeft, ShoppingCart, Plus, Minus } from 'lucide-react-native';
-import { ProductWithFinalPrice, ProductImageSource } from '../models';
-import { useCart } from '../contexts/CartContext';
-import { getProductImageSource, DEFAULT_IMAGE_KEY } from '../utils/productImage';
+import { ProductWithFinalPrice, ProductImageSource } from '../../models';
+import { getProductImageSource } from '../../utils/productImage';
+import { useProductDetailModalData } from './hooks/useProductDetailModalData';
 
-const RECOMMENDED_LIMIT = 6;
-const DEFAULT_IMAGE = require('../../assets/agua-sanitaria.png');
-const MOBILE_BREAKPOINT = 768;
+const DEFAULT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 function toImageSource(src: ProductImageSource | undefined): { uri: string } | number {
   return getProductImageSource(src, DEFAULT_IMAGE);
 }
 
-interface ProductDetailModalProps {
+export interface ProductDetailModalProps {
   visible: boolean;
   product: ProductWithFinalPrice | null;
   marketProducts?: ProductWithFinalPrice[];
@@ -43,164 +38,47 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onGoToCart,
   onSelectProduct,
 }) => {
-  const [imageIndex, setImageIndex] = useState(0);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
-  const [isHoveringImage, setIsHoveringImage] = useState(false);
-  const zoomAnim = useRef(new Animated.Value(1)).current;
-  const tx1 = useRef(new Animated.Value(0)).current;
-  const ty1 = useRef(new Animated.Value(0)).current;
-  const tx2 = useRef(new Animated.Value(0)).current;
-  const ty2 = useRef(new Animated.Value(0)).current;
-  const galleryRef = useRef<View>(null);
-  const recommendedScrollRef = useRef<ScrollView>(null);
-  const [recommendedPage, setRecommendedPage] = useState(0);
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isMobile = windowWidth < MOBILE_BREAKPOINT;
-  const windowDimensions = isMobile
-    ? { width: Dimensions.get('window').width, height: Dimensions.get('screen').height }
-    : null;
-  const { items, addToCart, updateQuantity, removeFromCart } = useCart();
+  const data = useProductDetailModalData({
+    visible,
+    product,
+    marketProducts,
+    onClose,
+    onSelectProduct,
+  });
 
-  const galleryWidth = Math.min(560, windowWidth - 48);
-  const galleryHeight = 280;
-  const centerX = galleryWidth / 2;
-  const centerY = galleryHeight / 2;
-
-  const productImages = useMemo(() => product?.images ?? [], [product?.images]);
-
-  const handleImageHoverIn = () => {
-    setIsHoveringImage(true);
-    setMousePos({ x: centerX, y: centerY });
-    tx1.setValue(0);
-    ty1.setValue(0);
-    tx2.setValue(0);
-    ty2.setValue(0);
-    Animated.spring(zoomAnim, {
-      toValue: 1.35,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 0,
-    }).start();
-  };
-
-  const handleImageHoverOut = () => {
-    setIsHoveringImage(false);
-    setMousePos(null);
-    tx1.setValue(0);
-    ty1.setValue(0);
-    tx2.setValue(0);
-    ty2.setValue(0);
-    Animated.spring(zoomAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 0,
-    }).start();
-  };
-
-  const handleImageMouseMove = (e: any) => {
-    const nativeEvent = e?.nativeEvent;
-    if (!nativeEvent || !galleryRef.current) return;
-    const rect = (galleryRef.current as any).getBoundingClientRect?.();
-    if (!rect) return;
-    const x = nativeEvent.clientX - rect.left;
-    const y = nativeEvent.clientY - rect.top;
-    setMousePos({ x, y });
-    const t1x = centerX - x;
-    const t1y = centerY - y;
-    const t2x = x - centerX;
-    const t2y = y - centerY;
-    tx1.setValue(t1x);
-    ty1.setValue(t1y);
-    tx2.setValue(t2x);
-    ty2.setValue(t2y);
-  };
-
-  const recommended = useMemo(() => {
-    if (!product || !marketProducts.length) return [];
-    return marketProducts
-      .filter((p) => p.category === product.category && p.id !== product.id)
-      .slice(0, RECOMMENDED_LIMIT);
-  }, [product, marketProducts]);
-
-  const cartQuantity = useMemo(() => {
-    if (!product) return 0;
-    const item = items.find((i) => i.product.id === product.id);
-    return item?.quantity ?? 0;
-  }, [product?.id, items]);
-
-  useEffect(() => {
-    setImageIndex(0);
-    setMousePos(null);
-    setIsHoveringImage(false);
-    zoomAnim.setValue(1);
-    tx1.setValue(0);
-    ty1.setValue(0);
-    tx2.setValue(0);
-    ty2.setValue(0);
-  }, [product?.id]);
-
-  const goToPrevImage = () => {
-    setImageIndex((i) => Math.max(0, i - 1));
-  };
-
-  const goToNextImage = () => {
-    setImageIndex((i) => Math.min(productImages.length - 1, i + 1));
-  };
-
-  const hasMultipleImages = productImages.length > 1;
-  const canGoPrev = hasMultipleImages && imageIndex > 0;
-  const canGoNext = hasMultipleImages && imageIndex < productImages.length - 1;
-
-  // Navegação de recomendados
-  const ITEMS_PER_PAGE = 3;
-  const totalRecommendedPages = Math.ceil(recommended.length / ITEMS_PER_PAGE);
-  const canGoPrevRecommended = recommendedPage > 0;
-  const canGoNextRecommended = recommendedPage < totalRecommendedPages - 1;
-
-  const goToPrevRecommended = () => {
-    if (!canGoPrevRecommended) return;
-    const newPage = recommendedPage - 1;
-    setRecommendedPage(newPage);
-    const itemWidth = 132; // 120 width + 12 marginRight
-    recommendedScrollRef.current?.scrollTo({
-      x: newPage * itemWidth * ITEMS_PER_PAGE,
-      animated: true,
-    });
-  };
-
-  const goToNextRecommended = () => {
-    if (!canGoNextRecommended) return;
-    const newPage = recommendedPage + 1;
-    setRecommendedPage(newPage);
-    const itemWidth = 132; // 120 width + 12 marginRight
-    recommendedScrollRef.current?.scrollTo({
-      x: newPage * itemWidth * ITEMS_PER_PAGE,
-      animated: true,
-    });
-  };
-
-  const resetAndClose = () => {
-    onClose();
-  };
-
-  const handleCartPlus = () => {
-    if (!product) return;
-    try {
-      addToCart(product, 1);
-    } catch (error: unknown) {
-      Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível adicionar');
-    }
-  };
-
-  const handleCartMinus = () => {
-    if (!product || cartQuantity <= 0) return;
-    if (cartQuantity === 1) {
-      removeFromCart(product.id);
-    } else {
-      updateQuantity(product.id, cartQuantity - 1);
-    }
-  };
+  const {
+    imageIndex,
+    zoomAnim,
+    tx1,
+    ty1,
+    tx2,
+    ty2,
+    galleryRef,
+    recommendedScrollRef,
+    isMobile,
+    windowDimensions,
+    galleryWidth,
+    galleryHeight,
+    productImages,
+    recommended,
+    cartQuantity,
+    handleImageHoverIn,
+    handleImageHoverOut,
+    handleImageMouseMove,
+    goToPrevImage,
+    goToNextImage,
+    goToPrevRecommended,
+    goToNextRecommended,
+    resetAndClose,
+    handleCartPlus,
+    handleCartMinus,
+    hasMultipleImages,
+    canGoPrev,
+    canGoNext,
+    canGoPrevRecommended,
+    canGoNextRecommended,
+    ITEMS_PER_PAGE,
+  } = data;
 
   if (!product) return null;
 
@@ -283,23 +161,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       onPress={goToPrevImage}
                       disabled={!canGoPrev}
                     >
-                      <ChevronLeft size={24} color={canGoPrev ? "#fff" : "#888"} />
+                      <ChevronLeft size={24} color={canGoPrev ? '#fff' : '#888'} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.galleryArrow, styles.galleryArrowRight]}
                       onPress={goToNextImage}
                       disabled={!canGoNext}
                     >
-                      <ChevronRight size={24} color={canGoNext ? "#fff" : "#888"} />
+                      <ChevronRight size={24} color={canGoNext ? '#fff' : '#888'} />
                     </TouchableOpacity>
                     <View style={styles.galleryDots}>
-                      {productImages.map((_, index) => (
+                      {productImages.map((_, i) => (
                         <View
-                          key={index}
-                          style={[
-                            styles.galleryDot,
-                            index === imageIndex && styles.galleryDotActive,
-                          ]}
+                          key={i}
+                          style={[styles.galleryDot, i === imageIndex && styles.galleryDotActive]}
                         />
                       ))}
                     </View>
@@ -336,10 +211,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.modalQuantityBar}>
-                      <TouchableOpacity
-                        style={styles.modalQuantityBtn}
-                        onPress={handleCartMinus}
-                      >
+                      <TouchableOpacity style={styles.modalQuantityBtn} onPress={handleCartMinus}>
                         <Minus size={18} color="#fff" />
                       </TouchableOpacity>
                       <Text style={styles.modalQuantityValue}>{cartQuantity}</Text>
@@ -348,7 +220,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         onPress={handleCartPlus}
                         disabled={cartQuantity >= product.stock}
                       >
-                        <Plus size={18} color={cartQuantity >= product.stock ? "#888" : "#fff"} />
+                        <Plus size={18} color={cartQuantity >= product.stock ? '#888' : '#fff'} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -367,14 +239,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         onPress={goToPrevRecommended}
                         disabled={!canGoPrevRecommended}
                       >
-                        <ChevronLeft size={18} color={canGoPrevRecommended ? "#333" : "#ccc"} />
+                        <ChevronLeft size={18} color={canGoPrevRecommended ? '#333' : '#ccc'} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.navArrowButton, !canGoNextRecommended && styles.navArrowButtonDisabled]}
                         onPress={goToNextRecommended}
                         disabled={!canGoNextRecommended}
                       >
-                        <ChevronRight size={18} color={canGoNextRecommended ? "#333" : "#ccc"} />
+                        <ChevronRight size={18} color={canGoNextRecommended ? '#333' : '#ccc'} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -403,9 +275,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <Text style={styles.recommendedName} numberOfLines={2}>
                         {rec.name}
                       </Text>
-                      <Text style={styles.recommendedPrice}>
-                        R$ {rec.finalPrice.toFixed(2)}
-                      </Text>
+                      <Text style={styles.recommendedPrice}>R$ {rec.finalPrice.toFixed(2)}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -490,14 +360,6 @@ const styles = StyleSheet.create({
   galleryArrowRight: {
     right: 0,
     borderTopRightRadius: 16,
-  },
-  galleryArrowText: {
-    fontSize: 36,
-    color: '#fff',
-    fontWeight: '300',
-  },
-  galleryArrowDisabled: {
-    opacity: 0.35,
   },
   galleryDots: {
     position: 'absolute',
@@ -644,14 +506,6 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  modalQuantityBtnText: {
-    fontFamily: 'BricolageGrotesque_700Bold',
-    color: '#fff',
-    fontSize: 20,
-  },
-  modalQuantityBtnTextDisabled: {
-    opacity: 0.4,
   },
   modalQuantityValue: {
     fontFamily: 'BricolageGrotesque_700Bold',

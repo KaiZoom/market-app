@@ -1,8 +1,10 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import React from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useBannerCarousel } from './hooks/useBannerCarousel';
+import type { BannerItem } from './hooks/useBannerCarousel';
 
-const DEFAULT_BANNERS = [
+const DEFAULT_BANNERS: BannerItem[] = [
   { id: 1, color: '#2196F3' },
   { id: 2, color: '#F44336' },
   { id: 3, color: '#4CAF50' },
@@ -10,17 +12,11 @@ const DEFAULT_BANNERS = [
 ];
 
 const BANNER_HEIGHT = 240;
-const AUTO_PLAY_INTERVAL_MS = 10000;
 
-export interface BannerItem {
-  id: number;
-  color: string;
-}
+export type { BannerItem };
 
 export interface BannerCarouselProps {
-  /** Largura do container (e de cada slide). Ex.: no mobile = width da tela; no desktop = width - sidebar. */
   width: number;
-  /** Lista de slides. Se não informado, usa os 4 banners padrão (azul, vermelho, verde, laranja). */
   banners?: BannerItem[];
 }
 
@@ -28,42 +24,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
   width,
   banners = DEFAULT_BANNERS,
 }) => {
-  const [index, setIndex] = useState(0);
-  const scrollRef = useRef<ScrollView | null>(null);
-
-  const handleScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offsetX = e.nativeEvent.contentOffset.x;
-      const newIndex = Math.round(offsetX / width);
-      setIndex(newIndex);
-    },
-    [width],
-  );
-
-  const goTo = useCallback(
-    (newIndex: number) => {
-      setIndex(newIndex);
-      scrollRef.current?.scrollTo({
-        x: newIndex * width,
-        animated: true,
-      });
-    },
-    [width],
-  );
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIndex((prev) => {
-        const next = (prev + 1) % banners.length;
-        scrollRef.current?.scrollTo({
-          x: next * width,
-          animated: true,
-        });
-        return next;
-      });
-    }, AUTO_PLAY_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [width, banners.length]);
+  const { index, scrollRef, handleScroll, goTo } = useBannerCarousel(width, banners);
 
   return (
     <View style={styles.container}>

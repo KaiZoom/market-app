@@ -9,12 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { Plus, Minus, Trash } from 'lucide-react-native';
-import { ProductWithFinalPrice } from '../models';
-import { useCart } from '../contexts/CartContext';
-import { getProductImageSource } from '../utils/productImage';
-import { truncateProductName } from '../utils/productName';
+import { ProductWithFinalPrice } from '../../models';
+import { getProductImageSource } from '../../utils/productImage';
+import { truncateProductName } from '../../utils/productName';
+import { useSearchSuggestionsDropdown } from './hooks/useSearchSuggestionsDropdown';
 
-const DEFAULT_PRODUCT_IMAGE = require('../../assets/agua-sanitaria.png');
+const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
 
 const DROPDOWN_MAX_HEIGHT = 380;
 
@@ -27,7 +27,7 @@ export const SearchSuggestionsDropdown: React.FC<SearchSuggestionsDropdownProps>
   searchTerm,
   results,
 }) => {
-  const { items, addToCart, updateQuantity, removeFromCart } = useCart();
+  const { items, addToCart, updateQuantity, removeFromCart } = useSearchSuggestionsDropdown();
 
   const cartQtyMap = React.useMemo(() => {
     const m = new Map<string, number>();
