@@ -17,6 +17,7 @@ import { ProductWithFinalPrice } from '../../models';
 import { productService } from '../../services';
 import { useCart } from '../../contexts/CartContext';
 import { ProductCard } from '../../components/ProductCard';
+import { BannerCarousel } from '../../components/BannerCarousel';
 import { useProductDetailModal } from '../../hooks/useProductDetailModal';
 import { useCustomerHeader } from '../../components/CustomerHeader';
 import { CategoriesSidebar } from '../../components/CategoriesSidebar';
@@ -53,12 +54,10 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   }, [marketId, marketName, navigation]);
 
   const { openProductModal, productDetailModal } = useProductDetailModal(products, navigation);
-  const [bannerIndex, setBannerIndex] = useState(0);
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
   const { user, logout } = useAuth();
   const { width } = useWindowDimensions();
-  const bannerScrollRef = useRef<ScrollView | null>(null);
   const [categoryPage, setCategoryPage] = useState<Record<string, number>>({});
   const categoryScrollRefs = useRef<Record<string, ScrollView | null>>({});
 
@@ -66,13 +65,6 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   useEffect(() => {
     setMarket(marketId);
   }, [marketId, setMarket]);
-
-  const banners = [
-    { id: 1, color: '#2196F3' }, // Azul
-    { id: 2, color: '#F44336' }, // Vermelho
-    { id: 3, color: '#4CAF50' }, // Verde
-    { id: 4, color: '#FF9800' }, // Laranja
-  ];
 
   const isMobile = width < MOBILE_BREAKPOINT;
   const itemsPerView = isMobile ? ITEMS_PER_VIEW_MOBILE : ITEMS_PER_VIEW_WEB;
@@ -101,36 +93,6 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   const bannerWidth = useMemo(() => {
     return isMobile ? width : width - SIDEBAR_WIDTH;
   }, [width, isMobile]);
-
-  const handleBannerScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = e.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(offsetX / bannerWidth);
-    setBannerIndex(newIndex);
-  }, [bannerWidth]);
-
-  const goToBanner = useCallback((index: number) => {
-    setBannerIndex(index);
-    bannerScrollRef.current?.scrollTo({
-      x: index * bannerWidth,
-      animated: true,
-    });
-  }, [bannerWidth]);
-
-  // Auto-play do banner a cada 10 segundos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setBannerIndex((prev) => {
-        const next = (prev + 1) % banners.length;
-        bannerScrollRef.current?.scrollTo({
-          x: next * bannerWidth,
-          animated: true,
-        });
-        return next;
-      });
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [bannerWidth, banners.length]);
 
   const categories = useMemo(
     () => [...new Set(products.map((p) => p.category))].sort(),
@@ -334,52 +296,6 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
     );
   }, [categoryPage, itemsPerView, isMobile, goToAllProducts, goToPrevPage, goToNextPage, handleCategoryScroll, carouselVisibleWidth, pageWidth, itemSize, renderProductCard]);
 
-  const renderBanner = useCallback(() => (
-    <View style={styles.bannerContainer}>
-      <ScrollView
-        ref={(el) => {
-          bannerScrollRef.current = el;
-        }}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleBannerScroll}
-        scrollEventThrottle={16}
-      >
-        {banners.map((banner) => (
-          <View key={banner.id} style={[styles.bannerSlide, { width: bannerWidth, backgroundColor: banner.color }]} />
-        ))}
-      </ScrollView>
-      <View style={styles.bannerControls}>
-        <TouchableOpacity
-          style={[styles.bannerArrow, bannerIndex === 0 && styles.bannerArrowDisabled]}
-          onPress={() => goToBanner(Math.max(0, bannerIndex - 1))}
-          disabled={bannerIndex === 0}
-        >
-          <ChevronLeft size={20} color={bannerIndex === 0 ? "#ccc" : "#fff"} />
-        </TouchableOpacity>
-        <View style={styles.bannerDots}>
-          {banners.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.bannerDot,
-                bannerIndex === index && styles.bannerDotActive,
-              ]}
-            />
-          ))}
-        </View>
-        <TouchableOpacity
-          style={[styles.bannerArrow, bannerIndex === banners.length - 1 && styles.bannerArrowDisabled]}
-          onPress={() => goToBanner(Math.min(banners.length - 1, bannerIndex + 1))}
-          disabled={bannerIndex === banners.length - 1}
-        >
-          <ChevronRight size={20} color={bannerIndex === banners.length - 1 ? "#ccc" : "#fff"} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  ), [bannerWidth, bannerIndex, banners, handleBannerScroll, goToBanner]);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.contentWrap}>
@@ -398,7 +314,7 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={true}
           >
-            {renderBanner()}
+            <BannerCarousel width={bannerWidth} />
             {sections.map(renderCategoryBlock)}
           </ScrollView>
           )}
@@ -426,7 +342,7 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={true}
               >
-                {renderBanner()}
+                <BannerCarousel width={bannerWidth} />
                 {sections.map(renderCategoryBlock)}
               </ScrollView>
             )}
@@ -771,53 +687,6 @@ const styles = StyleSheet.create({
   list: {
     padding: 16,
     paddingBottom: 32,
-  },
-  bannerContainer: {
-    height: 240,
-    position: 'relative',
-    width: '100%',
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  bannerSlide: {
-    height: 240,
-    borderRadius: 12,
-  },
-  bannerControls: {
-    position: 'absolute',
-    bottom: 16,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  bannerArrow: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bannerArrowDisabled: {
-    opacity: 0.3,
-  },
-  bannerDots: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  bannerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  bannerDotActive: {
-    backgroundColor: '#fff',
-    width: 24,
   },
   empty: {
     flex: 1,
