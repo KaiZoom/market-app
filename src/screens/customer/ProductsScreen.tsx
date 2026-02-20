@@ -12,7 +12,6 @@ import {
   ScrollView,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Platform,
 } from 'react-native';
 import { 
   ArrowLeft, 
@@ -41,12 +40,13 @@ import { productService, db } from '../../services';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProductDetailModal } from '../../components/ProductDetailModal';
-import { SearchBarWithSuggestions } from '../../components/SearchBarWithSuggestions';
+import { useCustomerHeader } from '../../components/CustomerHeader';
+import { CategoriesSidebar } from '../../components/CategoriesSidebar';
 import { AuthModal } from '../../components/AuthModal';
 import { getProductImageSource } from '../../utils/productImage';
 import { truncateProductName } from '../../utils/productName';
 const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
-const IS_WEB = Platform.OS === 'web';
+const IS_WEB = require('react-native').Platform.OS === 'web';
 
 const MOBILE_BREAKPOINT = 768;
 const ITEMS_PER_VIEW_MOBILE = 3;
@@ -155,41 +155,13 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
   const [categoryPage, setCategoryPage] = useState<Record<string, number>>({});
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [authModalVisible, setAuthModalVisible] = useState(false);
-  const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [allMarkets, setAllMarkets] = useState<Market[]>([]);
-  const marketDropdownWrapperIdRef = useRef('market-dd-' + Math.random().toString(36).slice(2));
-  const userDropdownWrapperIdRef = useRef('user-dd-' + Math.random().toString(36).slice(2));
   const categoryScrollRefs = useRef<Record<string, ScrollView | null>>({});
   const bannerScrollRef = useRef<ScrollView | null>(null);
   const { user, logout } = useAuth();
 
-  // Fechar dropdown Loja ao clicar fora (web: listener no document; mobile usa overlay)
-  useEffect(() => {
-    if (!IS_WEB || !marketDropdownOpen) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      const el = document.getElementById(marketDropdownWrapperIdRef.current);
-      if (el && !el.contains(e.target as Node)) setMarketDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [marketDropdownOpen]);
-
-  // Fechar dropdown Usuário ao clicar fora (web: listener no document; mobile usa overlay)
-  useEffect(() => {
-    if (!IS_WEB || !userDropdownOpen) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      const el = document.getElementById(userDropdownWrapperIdRef.current);
-      if (el && !el.contains(e.target as Node)) setUserDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [userDropdownOpen]);
-
-  // Define o mercado selecionado no contexto do carrinho (setMarket estável via useCallback no contexto)
   useEffect(() => {
     setMarket(marketId);
   }, [marketId, setMarket]);
@@ -198,11 +170,6 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     const markets = db.getMarkets();
     setAllMarkets(markets);
   }, []);
-
-  const handleChangeMarket = useCallback((market: Market) => {
-    setMarketDropdownOpen(false);
-    navigation.push('Products', { marketId: market.id, marketName: market.name });
-  }, [navigation]);
 
   const banners = [
     { id: 1, color: '#2196F3' }, // Azul
@@ -325,250 +292,29 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
     navigation.navigate('CategoryProducts', { marketId, marketName, category });
   };
 
+  const { headerOptions, dropdownOpen, closeDropdowns } = useCustomerHeader({
+    navigation,
+    isMobile,
+    marketId,
+    marketName,
+    showMarketDropdown: true,
+    allMarkets,
+    onMarketSelect: (market) => navigation.push('Products', { marketId: market.id, marketName: market.name }),
+    onNavigateToMarkets: () => navigation.navigate('Markets'),
+    products,
+    onSearchSubmit: handleSearchSubmit,
+    user,
+    onOpenAuthModal: () => setAuthModalVisible(true),
+    onLogout: logout,
+    getTotalItems,
+    openCartModal,
+    categories,
+    onCategoryPress: goToCategory,
+  });
+
   useEffect(() => {
-    navigation.setOptions(
-          isMobile
-        ? {
-            headerStyle: { minHeight: 200 },
-            header: () => (
-              <View style={styles.mobileHeaderRoot}>
-                <View style={styles.mobileHeaderRow1}>
-                  <View style={styles.mobileLogoSmall}>
-                    <ShoppingBag size={22} color="#2196F3" strokeWidth={2.5} />
-                    <Text style={styles.mobileLogoText}>MARKET</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.mobileLojaSelector}
-                    onPress={() => navigation.navigate('Markets')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.mobileLojaLabel}>Loja de</Text>
-                    <View style={styles.mobileLojaRow}>
-                      <Text style={styles.mobileLojaName} numberOfLines={1}>{marketName}</Text>
-                      <ChevronDown size={16} color="#333" />
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.mobileHeaderIcons}>
-                    <View style={styles.mobileUserButtonContainer}>
-                      <Pressable
-                        style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
-                        onPress={() => {
-                          if (user) {
-                            setUserDropdownOpen(!userDropdownOpen);
-                          } else {
-                            setAuthModalVisible(true);
-                          }
-                        }}
-                      >
-                        <User size={22} color="#2196F3" />
-                      </Pressable>
-                      {user && userDropdownOpen && (
-                        <View style={styles.mobileUserDropdownMenu}>
-                          <Pressable
-                            style={(s: { pressed: boolean }) => [
-                              styles.mobileUserDropdownItem,
-                              s.pressed && styles.mobileUserDropdownItemPressed,
-                            ]}
-                            onPress={() => {
-                              setUserDropdownOpen(false);
-                              navigation.navigate('Account');
-                            }}
-                          >
-                            <Text style={styles.mobileUserDropdownItemText}>Minha Conta</Text>
-                          </Pressable>
-                          <Pressable
-                            style={(s: { pressed: boolean }) => [
-                              styles.mobileUserDropdownItem,
-                              styles.mobileUserDropdownItemDanger,
-                              s.pressed && styles.mobileUserDropdownItemDangerPressed,
-                            ]}
-                            onPress={() => {
-                              setUserDropdownOpen(false);
-                              logout();
-                            }}
-                          >
-                            <Text style={styles.mobileUserDropdownItemTextDanger}>Sair</Text>
-                          </Pressable>
-                        </View>
-                      )}
-                    </View>
-                    <Pressable
-                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
-                      onPress={() => openCartModal(navigation)}
-                    >
-                      <ShoppingCart size={22} color="#333" />
-                      <Text style={styles.mobileCartCount}>({getTotalItems()})</Text>
-                    </Pressable>
-                  </View>
-                </View>
-                <View style={styles.mobileSearchRow}>
-                  <View style={styles.mobileSearchContainer}>
-                    <SearchBarWithSuggestions
-                      products={products}
-                      onSearchSubmit={handleSearchSubmit}
-                      placeholder="Leite, arroz, pão, vinho, frutas..."
-                    />
-                  </View>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.mobileCategoryRow}
-                >
-                  {categories.map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={styles.mobileCategoryChip}
-                      onPress={() => goToCategory(cat)}
-                    >
-                      <Text style={styles.mobileCategoryChipText} numberOfLines={1}>{cat}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            ),
-          }
-        : {
-            headerStyle: { height: 90 },
-            headerLeft: () => (
-              <View style={styles.headerLeftContainer}>
-                <View style={styles.marketLogoPlaceholder}>
-                  <View style={styles.logoIconContainer}>
-                    <ShoppingBag size={32} color="#2196F3" strokeWidth={2.5} />
-                  </View>
-                  <Text style={styles.logoText}>MARKET</Text>
-                </View>
-                <View nativeID={marketDropdownWrapperIdRef.current} style={styles.marketDropdownWrapper}>
-                  <View style={styles.marketSelectorContainer}>
-                    <Pressable
-                      style={(state: { pressed: boolean; hovered?: boolean }) => [
-                        styles.marketSelectorButton,
-                        (state.hovered || state.pressed) && styles.marketSelectorButtonHover,
-                      ]}
-                      onPress={() => setMarketDropdownOpen(!marketDropdownOpen)}
-                    >
-                      <Text style={styles.marketSelectorLabel}>Loja:</Text>
-                      <Text style={styles.marketSelectorName} numberOfLines={1}>{marketName}</Text>
-                      <ChevronDown size={18} color="#666" />
-                    </Pressable>
-                    {marketDropdownOpen && (
-                      <View style={styles.marketDropdownMenu}>
-                        <ScrollView style={styles.marketDropdownScroll} showsVerticalScrollIndicator={true}>
-                          {allMarkets.map((market) => (
-                            <Pressable
-                              key={market.id}
-                              style={(state: { pressed: boolean; hovered?: boolean }) => [
-                                styles.marketDropdownItem,
-                                market.id === marketId && styles.marketDropdownItemActive,
-                                state.hovered && styles.marketDropdownItemHover,
-                              ]}
-                              onPress={() => handleChangeMarket(market)}
-                            >
-                              <Text style={[
-                                styles.marketDropdownItemName,
-                                market.id === marketId && styles.marketDropdownItemNameActive,
-                              ]}>
-                                {market.name}
-                              </Text>
-                              <Text style={styles.marketDropdownItemLocation}>
-                                {market.city} - {market.neighborhood}
-                              </Text>
-                            </Pressable>
-                          ))}
-                          <Pressable
-                            style={(state: { pressed: boolean; hovered?: boolean }) => [
-                              styles.marketDropdownViewAll,
-                              state.hovered && styles.marketDropdownViewAllHover,
-                            ]}
-                            onPress={() => {
-                              setMarketDropdownOpen(false);
-                              navigation.navigate('Markets');
-                            }}
-                          >
-                            <Text style={styles.marketDropdownViewAllText}>Ver todos os mercados</Text>
-                          </Pressable>
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-            ),
-            headerTitleAlign: 'center',
-            headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' },
-            headerTitle: () => (
-              <View style={styles.headerSearchBarWrap}>
-                <SearchBarWithSuggestions products={products} onSearchSubmit={handleSearchSubmit} />
-              </View>
-            ),
-            headerRight: () => (
-              <View style={styles.headerRightContainer}>
-                <View nativeID={userDropdownWrapperIdRef.current} style={styles.userDropdownWrapper}>
-                  <View style={styles.userButtonContainer}>
-                    <Pressable
-                      style={(state: { pressed: boolean; hovered?: boolean }) => [
-                        styles.headerUserButton,
-                        (state.hovered || state.pressed) && styles.headerUserButtonHover,
-                      ]}
-                      onPress={() => {
-                        if (user) {
-                          setUserDropdownOpen(!userDropdownOpen);
-                        } else {
-                          setAuthModalVisible(true);
-                        }
-                      }}
-                    >
-                      <User size={20} color="#2196F3" />
-                      <Text style={styles.headerUserText}>
-                        {user ? user.name.split(' ')[0] : 'Entrar'}
-                      </Text>
-                    </Pressable>
-                    {user && userDropdownOpen && (
-                      <View style={styles.userDropdownMenu}>
-                        <Pressable
-                          style={(state: { pressed: boolean; hovered?: boolean }) => [
-                            styles.userDropdownItem,
-                            state.hovered && styles.userDropdownItemHover,
-                          ]}
-                          onPress={() => {
-                            setUserDropdownOpen(false);
-                            navigation.navigate('Account');
-                          }}
-                        >
-                          <Text style={styles.userDropdownItemText}>Minha Conta</Text>
-                        </Pressable>
-                        <Pressable
-                          style={(state: { pressed: boolean; hovered?: boolean }) => [
-                            styles.userDropdownItem,
-                            styles.userDropdownItemDanger,
-                            state.hovered && styles.userDropdownItemDangerHover,
-                          ]}
-                          onPress={() => {
-                            setUserDropdownOpen(false);
-                            logout();
-                          }}
-                        >
-                          <Text style={styles.userDropdownItemTextDanger}>Sair</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <Pressable
-                  style={(state: { pressed: boolean; hovered?: boolean }) => [
-                    styles.headerCartButton,
-                    (state.hovered || state.pressed) && styles.headerCartButtonHover,
-                  ]}
-                  onPress={() => openCartModal(navigation)}
-                >
-                  <ShoppingCart size={20} color="#fff" />
-                  <Text style={styles.cartButtonText}>({getTotalItems()})</Text>
-                </Pressable>
-              </View>
-            ),
-          }
-    );
-  }, [navigation, marketName, getTotalItems, isMobile, categories, openCartModal, user, logout, marketDropdownOpen, userDropdownOpen, allMarkets, marketId, handleChangeMarket, handleSearchSubmit, products]);
+    navigation.setOptions(headerOptions);
+  }, [navigation, headerOptions]);
 
   const goToPrevPage = (categoryTitle: string) => {
     const currentPage = categoryPage[categoryTitle] ?? 0;
@@ -775,11 +521,8 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       <View style={styles.contentWrap}>
       {isMobile ? (
         <View style={styles.mobileWrapper}>
-          {userDropdownOpen && (
-            <Pressable
-              style={styles.mobileDropdownOverlay}
-              onPress={() => setUserDropdownOpen(false)}
-            />
+          {!IS_WEB && dropdownOpen && (
+            <Pressable style={styles.mobileDropdownOverlay} onPress={closeDropdowns} />
           )}
           <ScrollView
             style={styles.scrollView}
@@ -792,69 +535,15 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
       ) : (
         <View style={styles.webRow}>
-          {!IS_WEB && (marketDropdownOpen || userDropdownOpen) && (
-            <Pressable
-              style={styles.dropdownOverlay}
-              onPress={() => {
-                setMarketDropdownOpen(false);
-                setUserDropdownOpen(false);
-              }}
-            />
+          {!IS_WEB && dropdownOpen && (
+            <Pressable style={styles.dropdownOverlay} onPress={closeDropdowns} />
           )}
-          <View style={styles.sidebar}>
-            <Text style={styles.sidebarTitle}>Categorias</Text>
-            {categories.map((cat) => {
-              const { Icon, color } = getCategoryIcon(cat);
-              return (
-                <Pressable
-                  key={cat}
-                  style={[
-                    styles.sidebarButton,
-                    hoveredCategory === cat && styles.sidebarButtonHovered,
-                  ]}
-                  onPress={() => goToCategory(cat)}
-                  {...({
-                    onMouseEnter: () => setHoveredCategory(cat),
-                    onMouseLeave: () => setHoveredCategory(null),
-                  } as any)}
-                >
-                  <View style={styles.sidebarButtonContent}>
-                    <View style={[styles.categoryIconContainer, { backgroundColor: `${color}20` }]}>
-                      <Icon size={20} color={color} />
-                    </View>
-                    <Text style={[
-                      styles.sidebarButtonText,
-                      hoveredCategory === cat && styles.sidebarButtonTextHovered,
-                    ]}>{cat}</Text>
-                  </View>
-                  <View style={[styles.categoryAccent, { backgroundColor: color }]} />
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={[
-                styles.sidebarButton,
-                styles.sidebarBackButton,
-                hoveredCategory === '__voltar__' && styles.sidebarButtonHovered,
-              ]}
-              onPress={() => navigation.navigate('Markets')}
-              {...({
-                onMouseEnter: () => setHoveredCategory('__voltar__'),
-                onMouseLeave: () => setHoveredCategory(null),
-              } as any)}
-            >
-              <View style={styles.sidebarButtonContent}>
-                <View style={[styles.categoryIconContainer, { backgroundColor: '#2196F320' }]}>
-                  <ArrowLeft size={20} color="#2196F3" />
-                </View>
-                <Text style={[
-                  styles.sidebarButtonText,
-                  hoveredCategory === '__voltar__' && styles.sidebarButtonTextHovered,
-                ]}>Voltar do mercado</Text>
-              </View>
-              <View style={[styles.categoryAccent, { backgroundColor: '#2196F3' }]} />
-            </Pressable>
-          </View>
+          <CategoriesSidebar
+            categories={categories}
+            showBackItem
+            onBackPress={() => navigation.navigate('Markets')}
+            onCategoryPress={goToCategory}
+          />
           <View style={styles.mainContent}>
             <ScrollView
               style={styles.scrollView}

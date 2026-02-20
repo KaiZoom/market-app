@@ -13,12 +13,15 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
-import { ArrowLeft, Plus, Minus, ShoppingCart, ChevronLeft, ChevronRight, ChevronDown, ShoppingBag, User, Utensils, GlassWater, Sparkles, ShowerHead, Croissant, Drumstick, Apple, Sandwich, Milk, Package, Snowflake } from 'lucide-react-native';
+import { Plus, Minus, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { ProductWithFinalPrice } from '../../models';
 import { productService } from '../../services';
 import { useCart } from '../../contexts/CartContext';
 import { ProductDetailModal } from '../../components/ProductDetailModal';
-import { SearchBarWithSuggestions } from '../../components/SearchBarWithSuggestions';
+import { useCustomerHeader } from '../../components/CustomerHeader';
+import { CategoriesSidebar } from '../../components/CategoriesSidebar';
+import { AuthModal } from '../../components/AuthModal';
+import { useAuth } from '../../contexts/AuthContext';
 import { getProductImageSource } from '../../utils/productImage';
 import { truncateProductName } from '../../utils/productName';
 const DEFAULT_PRODUCT_IMAGE = require('../../../assets/agua-sanitaria.png');
@@ -41,23 +44,6 @@ interface Section {
   title: string;
   items: ProductWithFinalPrice[];
 }
-
-const getCategoryIcon = (cat: string) => {
-  const iconMap: Record<string, { Icon: any; color: string }> = {
-    'Alimentos': { Icon: Utensils, color: '#FF9800' },
-    'Bebidas': { Icon: GlassWater, color: '#2196F3' },
-    'Limpeza': { Icon: Sparkles, color: '#00BCD4' },
-    'Higiene': { Icon: ShowerHead, color: '#9C27B0' },
-    'Padaria': { Icon: Croissant, color: '#FFC107' },
-    'Açougue': { Icon: Drumstick, color: '#F44336' },
-    'Hortifruti': { Icon: Apple, color: '#4CAF50' },
-    'Refrigerados': { Icon: Snowflake, color: '#00ACC1' },
-    'Frios': { Icon: Sandwich, color: '#FFEB3B' },
-    'Laticínios': { Icon: Milk, color: '#E0E0E0' },
-    'Mercearia': { Icon: ShoppingBag, color: '#795548' },
-  };
-  return iconMap[cat] || { Icon: Package, color: '#757575' };
-};
 
 interface CartButtonsOverlayProps {
   product: ProductWithFinalPrice;
@@ -126,8 +112,9 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [authModalVisible, setAuthModalVisible] = useState(false);
   const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
+  const { user, logout } = useAuth();
   const { width } = useWindowDimensions();
   const bannerScrollRef = useRef<ScrollView | null>(null);
   const [categoryPage, setCategoryPage] = useState<Record<string, number>>({});
@@ -222,6 +209,29 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
     navigation.navigate('Products', { marketId, marketName });
   };
 
+  const IS_WEB = require('react-native').Platform.OS === 'web';
+  const { headerOptions, dropdownOpen, closeDropdowns } = useCustomerHeader({
+    navigation,
+    isMobile,
+    marketId,
+    marketName,
+    marketNameLabel: `${marketName} · ${category}`,
+    showBack: true,
+    onBackPress: () => navigation.goBack(),
+    onNavigateToMarkets: () => navigation.goBack(),
+    products: allMarketProducts,
+    onSearchSubmit: handleSearchSubmit,
+    user,
+    onOpenAuthModal: () => setAuthModalVisible(true),
+    onLogout: logout,
+    getTotalItems,
+    openCartModal,
+    categories,
+    currentCategory: category,
+    onCategoryPress: goToCategory,
+    onAllProductsPress: goToAllProducts,
+  });
+
   const goToPrevPage = useCallback((sectionTitle: string) => {
     const currentPage = categoryPage[sectionTitle] ?? 0;
     const newPage = Math.max(0, currentPage - 1);
@@ -249,131 +259,8 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
   }, [pageWidth]);
 
   useEffect(() => {
-    navigation.setOptions(
-      isMobile
-        ? {
-            headerStyle: { minHeight: 200 },
-            header: () => (
-              <View style={styles.mobileHeaderRoot}>
-                <View style={styles.mobileHeaderRow1}>
-                  <TouchableOpacity
-                    style={styles.mobileBackBtn}
-                    onPress={() => navigation.goBack()}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <ArrowLeft size={22} color="#2196F3" />
-                  </TouchableOpacity>
-                  <View style={styles.mobileLogoSmall}>
-                    <ShoppingBag size={22} color="#2196F3" strokeWidth={2.5} />
-                    <Text style={styles.mobileLogoText}>MARKET</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.mobileLojaSelector}
-                    onPress={() => navigation.goBack()}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.mobileLojaLabel}>Loja de</Text>
-                    <View style={styles.mobileLojaRow}>
-                      <Text style={styles.mobileLojaName} numberOfLines={1}>{marketName} · {category}</Text>
-                      <ChevronDown size={16} color="#333" />
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.mobileHeaderIcons}>
-                    <Pressable
-                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
-                      onPress={() => {}}
-                    >
-                      <User size={22} color="#2196F3" />
-                    </Pressable>
-                    <Pressable
-                      style={(s: { pressed: boolean }) => [styles.mobileIconBtn, s.pressed && styles.mobileIconBtnPressed]}
-                      onPress={() => openCartModal(navigation)}
-                    >
-                      <ShoppingCart size={22} color="#333" />
-                      <Text style={styles.mobileCartCount}>({getTotalItems()})</Text>
-                    </Pressable>
-                  </View>
-                </View>
-                <View style={styles.mobileSearchRow}>
-                  <View style={styles.mobileSearchContainer}>
-                    <SearchBarWithSuggestions
-                      products={allMarketProducts}
-                      onSearchSubmit={handleSearchSubmit}
-                      placeholder="Leite, arroz, pão, vinho, frutas..."
-                    />
-                  </View>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.mobileCategoryRow}
-                >
-                  <TouchableOpacity
-                    style={styles.mobileCategoryChip}
-                    onPress={goToAllProducts}
-                  >
-                    <Text style={styles.mobileCategoryChipText} numberOfLines={1}>Todos</Text>
-                  </TouchableOpacity>
-                  {categories.map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.mobileCategoryChip, cat === category && styles.mobileCategoryChipActive]}
-                      onPress={() => goToCategory(cat)}
-                    >
-                      <Text style={[styles.mobileCategoryChipText, cat === category && styles.mobileCategoryChipTextActive]} numberOfLines={1}>{cat}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            ),
-          }
-        : {
-            headerStyle: { height: 90 },
-            headerLeft: () => (
-              <View style={styles.headerLeftContainer}>
-                <TouchableOpacity
-                  style={styles.webBackButton}
-                  onPress={() => navigation.goBack()}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <ArrowLeft size={22} color="#2196F3" />
-                </TouchableOpacity>
-                <View style={styles.marketLogoPlaceholder}>
-                  <View style={styles.logoIconContainer}>
-                    <ShoppingBag size={32} color="#2196F3" strokeWidth={2.5} />
-                  </View>
-                  <Text style={styles.logoText}>MARKET</Text>
-                </View>
-              </View>
-            ),
-            headerTitleAlign: 'center',
-            headerTitleContainerStyle: { flex: 1, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' },
-            headerTitle: () => (
-              <View style={styles.headerSearchBarWrap}>
-                <SearchBarWithSuggestions products={allMarketProducts} onSearchSubmit={handleSearchSubmit} />
-              </View>
-            ),
-            headerRight: () => (
-              <View style={styles.headerRightContainer}>
-                <Pressable
-                  style={(s: { pressed: boolean; hovered?: boolean }) => [styles.headerUserButton, (s.hovered || s.pressed) && styles.headerUserButtonHover]}
-                  onPress={() => {}}
-                >
-                  <User size={20} color="#2196F3" />
-                  <Text style={styles.headerUserText}>Entrar</Text>
-                </Pressable>
-                <Pressable
-                  style={(s: { pressed: boolean; hovered?: boolean }) => [styles.headerCartButton, (s.hovered || s.pressed) && styles.headerCartButtonHover]}
-                  onPress={() => openCartModal(navigation)}
-                >
-                  <ShoppingCart size={20} color="#fff" />
-                  <Text style={styles.cartButtonText}>({getTotalItems()})</Text>
-                </Pressable>
-              </View>
-            ),
-          }
-    );
-  }, [navigation, marketName, category, getTotalItems, isMobile, categories, openCartModal, handleSearchSubmit, allMarketProducts]);
+    navigation.setOptions(headerOptions);
+  }, [navigation, headerOptions]);
 
   // Lista da categoria por subcategoria (mesmo formato da ProductsScreen: sections com items)
   const sections = useMemo((): Section[] => {
@@ -607,11 +494,15 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
     <SafeAreaView style={styles.container}>
       <View style={styles.contentWrap}>
       {isMobile ? (
-        sections.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>Nenhum produto nesta categoria.</Text>
-          </View>
-        ) : (
+        <>
+          {!IS_WEB && dropdownOpen && (
+            <Pressable style={styles.dropdownOverlay} onPress={closeDropdowns} />
+          )}
+          {sections.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>Nenhum produto nesta categoria.</Text>
+            </View>
+          ) : (
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.list}
@@ -620,70 +511,20 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
             {renderBanner()}
             {sections.map(renderCategoryBlock)}
           </ScrollView>
-        )
+          )}
+        </>
       ) : (
         <View style={styles.webRow}>
-          <View style={styles.sidebar}>
-            <ScrollView
-              style={styles.sidebarScroll}
-              contentContainerStyle={styles.sidebarScrollContent}
-              showsVerticalScrollIndicator={true}
-            >
-              <Text style={styles.sidebarTitle}>Categorias</Text>
-              <Pressable
-              style={[
-                styles.sidebarButton,
-                hoveredCategory === '__todos__' && styles.sidebarButtonHovered,
-              ]}
-              onPress={goToAllProducts}
-              {...({
-                onMouseEnter: () => setHoveredCategory('__todos__'),
-                onMouseLeave: () => setHoveredCategory(null),
-              } as any)}
-            >
-              <View style={styles.sidebarButtonContent}>
-                <View style={[styles.categoryIconContainer, { backgroundColor: '#2196F320' }]}>
-                  <ShoppingBag size={20} color="#2196F3" />
-                </View>
-                <Text style={[
-                  styles.sidebarButtonText,
-                  hoveredCategory === '__todos__' && styles.sidebarButtonTextHovered,
-                ]}>Todos</Text>
-              </View>
-              <View style={[styles.categoryAccent, { backgroundColor: '#2196F3' }]} />
-            </Pressable>
-            {categories.map((cat) => {
-              const { Icon, color } = getCategoryIcon(cat);
-              return (
-                <Pressable
-                  key={cat}
-                  style={[
-                    styles.sidebarButton,
-                    cat === category && styles.sidebarButtonActive,
-                    hoveredCategory === cat && styles.sidebarButtonHovered,
-                  ]}
-                  onPress={() => goToCategory(cat)}
-                  {...({
-                    onMouseEnter: () => setHoveredCategory(cat),
-                    onMouseLeave: () => setHoveredCategory(null),
-                  } as any)}
-                >
-                  <View style={styles.sidebarButtonContent}>
-                    <View style={[styles.categoryIconContainer, { backgroundColor: `${color}20` }]}>
-                      <Icon size={20} color={color} />
-                    </View>
-                    <Text style={[
-                      styles.sidebarButtonText,
-                      cat === category && styles.sidebarButtonTextActive,
-                      hoveredCategory === cat && styles.sidebarButtonTextHovered,
-                    ]}>{cat}</Text>
-                  </View>
-                  <View style={[styles.categoryAccent, { backgroundColor: color }]} />
-                </Pressable>
-              );
-            })}
-            </ScrollView>
-          </View>
+          {!IS_WEB && dropdownOpen && (
+            <Pressable style={styles.dropdownOverlay} onPress={closeDropdowns} />
+          )}
+          <CategoriesSidebar
+            categories={categories}
+            currentCategory={category}
+            showAllItem
+            onAllPress={goToAllProducts}
+            onCategoryPress={goToCategory}
+          />
           <View style={styles.mainContent}>
             {sections.length === 0 ? (
               <View style={styles.empty}>
@@ -711,6 +552,7 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
         onGoToCart={() => openCartModal(navigation)}
         onSelectProduct={setSelectedProduct}
       />
+      <AuthModal visible={authModalVisible} onClose={() => setAuthModalVisible(false)} />
     </SafeAreaView>
   );
 };
@@ -732,6 +574,14 @@ const styles = StyleSheet.create({
   },
   contentWrap: {
     flex: 1,
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
   },
   searchDropdownWrap: {
     position: 'absolute',
