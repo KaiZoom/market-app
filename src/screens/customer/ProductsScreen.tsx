@@ -36,8 +36,8 @@ import { ProductWithFinalPrice, Market } from '../../models';
 import { productService, db } from '../../services';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ProductDetailModal } from '../../components/ProductDetailModal';
 import { ProductCard } from '../../components/ProductCard';
+import { useProductDetailModal } from '../../hooks/useProductDetailModal';
 import { useCustomerHeader } from '../../components/CustomerHeader';
 import { CategoriesSidebar } from '../../components/CategoriesSidebar';
 import { AuthModal } from '../../components/AuthModal';
@@ -94,7 +94,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const isMobile = width < MOBILE_BREAKPOINT;
   const [categoryPage, setCategoryPage] = useState<Record<string, number>>({});
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
+  const { openProductModal, productDetailModal } = useProductDetailModal(products, navigation);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [allMarkets, setAllMarkets] = useState<Market[]>([]);
@@ -204,7 +204,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
       Alert.alert('Estoque Esgotado', 'Este produto não está disponível no momento.');
       return;
     }
-    setSelectedProduct(product);
+    openProductModal(product);
   };
 
   const handleQuickAdd = (product: ProductWithFinalPrice) => {
@@ -445,14 +445,7 @@ export const ProductsScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
       )}
       </View>
-      <ProductDetailModal
-        visible={!!selectedProduct}
-        product={selectedProduct}
-        marketProducts={products}
-        onClose={() => setSelectedProduct(null)}
-        onGoToCart={() => openCartModal(navigation)}
-        onSelectProduct={setSelectedProduct}
-      />
+      {productDetailModal}
       <AuthModal
         visible={authModalVisible}
         onClose={() => setAuthModalVisible(false)}

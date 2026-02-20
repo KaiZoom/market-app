@@ -221,7 +221,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         ]}
         onPress={resetAndClose}
       >
-        <Pressable
+        <View
           style={[
             styles.modalBox,
             isMobile &&
@@ -234,7 +234,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 },
               ],
           ]}
-          onPress={(e) => e.stopPropagation()}
+          onStartShouldSetResponder={() => true}
+          {...({ onClick: (e: any) => e?.stopPropagation?.() } as any)}
         >
           <TouchableOpacity style={styles.closeButton} onPress={resetAndClose} hitSlop={12}>
             <Text style={styles.closeButtonText}>×</Text>
@@ -250,11 +251,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 ref={galleryRef}
                 style={[styles.galleryWrap, { width: galleryWidth, height: galleryHeight }]}
               >
-                <Pressable
+                <View
                   style={styles.galleryImageContainer}
-                  onHoverIn={handleImageHoverIn}
-                  onHoverOut={handleImageHoverOut}
-                  {...({ onMouseMove: handleImageMouseMove } as any)}
+                  {...({
+                    onMouseEnter: handleImageHoverIn,
+                    onMouseLeave: handleImageHoverOut,
+                    onMouseMove: handleImageMouseMove,
+                  } as any)}
                 >
                   <Animated.Image
                     source={toImageSource(productImages[imageIndex])}
@@ -272,7 +275,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     ]}
                     resizeMode="contain"
                   />
-                </Pressable>
+                </View>
                 {hasMultipleImages && (
                   <>
                     <TouchableOpacity
@@ -409,7 +412,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </View>
             )}
           </ScrollView>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
@@ -439,6 +442,7 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     width: '100%',
     maxHeight: '90%',
+    cursor: 'default',
   },
   modalBoxFullScreen: {
     borderRadius: 0,

@@ -16,8 +16,8 @@ import { ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { ProductWithFinalPrice } from '../../models';
 import { productService } from '../../services';
 import { useCart } from '../../contexts/CartContext';
-import { ProductDetailModal } from '../../components/ProductDetailModal';
 import { ProductCard } from '../../components/ProductCard';
+import { useProductDetailModal } from '../../hooks/useProductDetailModal';
 import { useCustomerHeader } from '../../components/CustomerHeader';
 import { CategoriesSidebar } from '../../components/CategoriesSidebar';
 import { AuthModal } from '../../components/AuthModal';
@@ -52,7 +52,7 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
     }
   }, [marketId, marketName, navigation]);
 
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithFinalPrice | null>(null);
+  const { openProductModal, productDetailModal } = useProductDetailModal(products, navigation);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const { getTotalItems, addToCart, openCartModal, items, updateQuantity, setMarket } = useCart();
@@ -234,8 +234,8 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
       Alert.alert('Estoque Esgotado', 'Este produto não está disponível no momento.');
       return;
     }
-    setSelectedProduct(product);
-  }, []);
+    openProductModal(product);
+  }, [openProductModal]);
 
   const handleQuickAdd = useCallback((product: ProductWithFinalPrice) => {
     if (product.stock === 0) {
@@ -434,14 +434,7 @@ export const CategoryProductsScreen: React.FC<Props> = ({ route, navigation }) =
         </View>
       )}
       </View>
-      <ProductDetailModal
-        visible={!!selectedProduct}
-        product={selectedProduct}
-        marketProducts={products}
-        onClose={() => setSelectedProduct(null)}
-        onGoToCart={() => openCartModal(navigation)}
-        onSelectProduct={setSelectedProduct}
-      />
+      {productDetailModal}
       <AuthModal visible={authModalVisible} onClose={() => setAuthModalVisible(false)} />
     </SafeAreaView>
   );
